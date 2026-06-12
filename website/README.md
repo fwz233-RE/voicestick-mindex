@@ -1,24 +1,22 @@
-# VoiceStick Website
+# VoiceStick 网站
 
-Vue + Vite source for the VoiceStick homepage and Sparkle/WinSparkle appcast. The site uses
-`vue-i18n` for Simplified Chinese and English, and picks Chinese automatically
-when the browser language starts with `zh`.
+这里是 VoiceStick 官网和 Sparkle / WinSparkle 更新源的 Vue + Vite 源码。网站使用 `vue-i18n` 支持简体中文和英文；当浏览器语言以 `zh` 开头时，会自动显示中文。
 
-Suggested GitHub Pages URL for this repository:
+建议的 GitHub Pages 地址：
 
 ```text
 https://78.github.io/voicestick/
 ```
 
-The macOS and Windows apps check the generated root-level appcast:
+macOS 和 Windows 应用会检查根路径下生成的 appcast：
 
 ```text
 https://78.github.io/voicestick/appcast.xml
 ```
 
-## Release Flow
+## 发布流程
 
-1. Generate Sparkle keys once and keep the private key out of git:
+1. 首次发布前生成 Sparkle 密钥，并确保私钥不要提交到 Git：
 
    ```bash
    cd desktop/macos
@@ -27,34 +25,34 @@ https://78.github.io/voicestick/appcast.xml
    .build/artifacts/sparkle/Sparkle/bin/generate_keys --account voicestick
    ```
 
-2. Put the public key into the app before a release build:
+2. 发布构建前，把公钥写入应用：
 
    ```bash
    SPARKLE_PUBLIC_ED_KEY="..." scripts/build-macos.sh --release
    ```
 
-3. Create the DMG:
+3. 创建 DMG：
 
    ```bash
    scripts/make-dmg.sh
    ```
 
-4. Upload these files to GitHub Release `v<version>`:
+4. 上传这些文件到 GitHub Release `v<version>`：
 
    ```text
    build/VoiceStick-<version>.dmg
    build/VoiceStick-<version>.zip
    ```
 
-5. Update `website/public/appcast.xml`:
+5. 更新 `website/public/appcast.xml`：
 
-   - `url`: GitHub Release URL for the ZIP, not the DMG
-   - `sparkle:edSignature`: content from `build/VoiceStick-<version>.signature`
-   - `length`: byte size from `wc -c build/VoiceStick-<version>.zip`
+   - `url`：指向 GitHub Release 中的 ZIP，不是 DMG
+   - `sparkle:edSignature`：来自 `build/VoiceStick-<version>.signature`
+   - `length`：来自 `wc -c build/VoiceStick-<version>.zip` 的字节数
 
-The homepage download section links directly to the current versioned macOS DMG and Windows MSI. Keep `website/package.json` in sync with the latest public release so those direct links and the firmware fallback URL point at the right version. The browser flasher reads the firmware manifest from `VITE_FIRMWARE_MANIFEST_URL` and uses `merged_url`; if the manifest cannot be loaded, it falls back to the versioned merged firmware URL derived from `website/package.json`.
+首页下载区会直接链接到当前版本的 macOS DMG 和 Windows MSI。请保持 `website/package.json` 与最新公开版本一致，这样直接下载链接和固件备用地址才会指向正确版本。浏览器刷写器会从 `VITE_FIRMWARE_MANIFEST_URL` 读取固件清单，并使用其中的 `merged_url`；如果清单加载失败，会退回到根据 `website/package.json` 推导出的版本化合并固件地址。
 
-## Develop
+## 本地开发
 
 ```bash
 cd website
@@ -62,22 +60,22 @@ npm install
 npm run dev
 ```
 
-## Build
+## 构建
 
 ```bash
 cd website
 npm run build
 ```
 
-The generated `dist/` directory is deployed to GitHub Pages. `public/appcast.xml` is copied to `dist/appcast.xml`. The firmware manifest itself is hosted on OSS, not GitHub Pages.
+生成的 `dist/` 目录会部署到 GitHub Pages。`public/appcast.xml` 会复制为 `dist/appcast.xml`。固件清单本身托管在 OSS，不托管在 GitHub Pages。
 
 ## GitHub Actions
 
-- `.github/workflows/release.yml` runs on `v*` tags or manual dispatch. It builds the macOS app, signs and notarizes the DMG, uploads DMG/ZIP/signature assets to the matching GitHub Release, builds versioned OTA and merged firmware images, publishes the firmware manifest to OSS, rewrites `public/appcast.xml`, builds the Vue site, and deploys `website/dist` to GitHub Pages.
-- `scripts/build-msi.bat` runs on the local Windows signing machine with the USB signing key inserted. Upload the generated `VoiceStick_<version>.msi` to the matching GitHub Release.
-- `.github/workflows/deploy-website.yml` runs when `website/**` changes on `main` or when manually dispatched after uploading a Windows MSI. Before deploying, it reads the current live appcast and latest GitHub Release, then regenerates `public/appcast.xml` from the latest ZIP/signature and optional MSI assets. If the latest Release has no Windows MSI yet, the previous Windows item is preserved.
+- `.github/workflows/release.yml` 会在 `v*` 标签或手动触发时运行。它会构建 macOS 应用，对 DMG 进行签名和公证，把 DMG / ZIP / signature 上传到匹配的 GitHub Release，构建版本化 OTA 和合并固件镜像，将固件清单发布到 OSS，重写 `public/appcast.xml`，构建 Vue 网站，并部署 `website/dist` 到 GitHub Pages。
+- `scripts/build-msi.bat` 在插入 USB 签名密钥的本地 Windows 签名机上运行。生成的 `VoiceStick_<version>.msi` 需要上传到匹配的 GitHub Release。
+- `.github/workflows/deploy-website.yml` 会在 `main` 分支的 `website/**` 变更时运行，也可以在上传 Windows MSI 后手动触发。部署前，它会读取当前线上 appcast 和最新 GitHub Release，然后根据最新 ZIP / signature 和可选 MSI 资源重新生成 `public/appcast.xml`。如果最新 Release 还没有 Windows MSI，则保留之前的 Windows 更新项。
 
-Required repository secrets for release builds:
+发布构建需要配置以下仓库密钥：
 
 ```text
 SPARKLE_PUBLIC_ED_KEY
