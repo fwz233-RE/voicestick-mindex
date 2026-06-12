@@ -1,93 +1,91 @@
 # Voice Stick
 
-Voice Stick turns an M5Stack StickS3 into a Bluetooth push-to-talk input device for macOS.
+Voice Stick 可以把 M5Stack StickS3 变成一个面向桌面端的蓝牙按住说话输入设备。
 
-Hold the front button on the StickS3 to record. When you release it, the macOS menu bar app sends the audio to ASR, shows the recognized text, and pastes the final result into the currently focused input field after a short confirmation countdown. By default it pastes text and presses Return; `auto_enter` can be disabled in settings.
+按住 StickS3 正面按钮开始录音。松开后，桌面菜单栏应用会把音频发送到 ASR，显示识别文本，并在短暂确认倒计时后把最终结果粘贴到当前聚焦的输入框。默认行为是粘贴文本并按下 Return；可以在设置里关闭 `auto_enter`。
 
-## Project Layout
+## 项目结构
 
-- `firmware/`: ESP-IDF firmware for M5Stack StickS3 / ESP32-S3.
-- `desktop/macos/`: Swift Package for the native macOS menu bar app.
-- `desktop/windows/`: Windows desktop app workspace.
-- `desktop/linux/`: Linux desktop app workspace.
-- `docs/protocol.md`: BLE protocol between StickS3 and macOS.
-- `docs/volcengine-asr.md`: trimmed Volcengine ASR notes used by the desktop client.
-- `scripts/`: sprite slicing, palette tuning, and LVGL ARGB binary conversion helpers.
+- `firmware/`：M5Stack StickS3 / ESP32-S3 的 ESP-IDF 固件。
+- `desktop/macos/`：原生 macOS 菜单栏应用的 Swift Package。
+- `desktop/windows/`：Windows 桌面应用工作区。
+- `desktop/linux/`：Linux 桌面应用工作区。
+- `docs/protocol.md`：StickS3 和桌面应用之间的 BLE 协议。
+- `docs/volcengine-asr.md`：桌面客户端使用的精简版火山引擎 ASR 说明。
+- `scripts/`：精灵图切片、调色和 LVGL ARGB 二进制转换辅助脚本。
 
-## Current Features
+## 当前功能
 
-- StickS3 advertises as `VS-XXXX`, where `XXXX` is derived from the last two bytes of the eFuse MAC.
-- The macOS app only connects to paired `VS-XXXX` devices and can keep multiple paired devices connected at once. The menu bar app lists every paired device and shows whether each one is connected or still scanning.
-- The front button maps to the protocol `primary` role; it starts a recording session on press and ends it on release when the app has put the device in `ready`.
-- The firmware reads 16 kHz mono PCM from the ES8311 microphone, encodes it as Opus, and sends it over BLE notifications.
-- The macOS app wraps incoming Opus payloads into Ogg Opus and forwards them to ASR over WebSocket.
-- ASR providers can be direct Volcengine or VoiceStick Cloud relay.
-- During recognition, the macOS app shows a floating overlay and menu bar status. The firmware display stays in the thinking state after button release until the text is pasted or cancelled.
-- Final text enters a 1.2 second confirmation countdown.
-- Pressing the front button during the countdown pauses auto-paste. Pressing the front button again confirms paste; pressing the side button cancels it.
-- Pressing the side button while idle restores the last recoverable input confirmation.
-- Optional debug audio cache saves each valid recognition session as Ogg Opus, with the source device ID included in the file name when available.
-- Firmware updates are checked from a signed-by-hash manifest on app launch, device connect/reconnect, and manual menu refresh. Updates are offered per connected device.
-- The firmware screen shows pairing, ready, listening, thinking, pending confirmation, error, and battery states based on app-sent `ui_state` updates. It dims after 30 seconds of inactivity. On battery power it enters deep sleep after 5 minutes; while charging or USB powered it stays at the dimmed-screen stage. The front button wakes it from deep sleep.
+- StickS3 会以 `VS-XXXX` 名称广播，其中 `XXXX` 来自 eFuse MAC 的最后两个字节。
+- 桌面应用只连接已配对的 `VS-XXXX` 设备，并且可以同时保持多个已配对设备在线。菜单栏会列出所有已配对设备，并显示每个设备是已连接还是仍在扫描。
+- 正面按钮对应协议里的 `primary` 角色；当应用把设备置于 `ready` 后，按下开始录音，松开结束录音。
+- 固件从 ES8311 麦克风读取 16 kHz 单声道 PCM，编码为 Opus，并通过 BLE notify 发送。
+- 桌面应用把收到的 Opus 载荷封装为 Ogg Opus，并通过 WebSocket 转发给 ASR。
+- ASR 提供方可以是直连火山引擎，也可以是 VoiceStick Cloud relay。
+- 识别过程中，桌面应用会显示浮动提示层和菜单栏状态。按钮松开后，固件屏幕会保持 thinking 状态，直到文本被粘贴或取消。
+- 最终文本会进入 1.2 秒确认倒计时。
+- 倒计时期间按正面按钮会暂停自动粘贴。再次按正面按钮确认粘贴；按侧键取消。
+- 空闲时按侧键会恢复上一次可恢复的输入确认。
+- 可选的调试音频缓存会把每个有效识别会话保存为 Ogg Opus；如果有来源设备 ID，会写入文件名。
+- 固件更新会在应用启动、设备连接或重连、手动菜单刷新时检查基于哈希签名的清单。更新会按已连接设备分别提示。
+- 固件屏幕会根据应用发送的 `ui_state` 显示配对、就绪、监听、思考、待确认、错误和电池状态。30 秒无操作后屏幕变暗。电池供电时 5 分钟后进入 deep sleep；充电或 USB 供电时停留在暗屏阶段。正面按钮可从 deep sleep 唤醒。
 
-## Hardware Target
+## 硬件目标
 
-- Board: M5Stack StickS3 / ESP32-S3-PICO-1-N8R8
-- Front button: GPIO11, protocol `primary`, push-to-talk and deep-sleep wake
-- Side button: GPIO12, protocol `secondary`, cancel or restore the last input confirmation
-- PMIC IRQ: GPIO13
-- Audio codec: ES8311 over I2S, 16 kHz / 16 bit / mono
-- Display: 135 x 240 ST7789P3 portrait screen
-- LCD backlight: GPIO38 PWM
+- 开发板：M5Stack StickS3 / ESP32-S3-PICO-1-N8R8
+- 正面按钮：GPIO11，协议角色 `primary`，用于按住说话和 deep-sleep 唤醒
+- 侧键：GPIO12，协议角色 `secondary`，用于取消或恢复上一次输入确认
+- PMIC IRQ：GPIO13
+- 音频 Codec：ES8311 over I2S，16 kHz / 16 bit / 单声道
+- 屏幕：135 x 240 ST7789P3 竖屏
+- LCD 背光：GPIO38 PWM
 
-Main pin definitions live in `firmware/components/stick_s3_board/include/stick_s3_board.h`.
+主要引脚定义位于 `firmware/components/stick_s3_board/include/stick_s3_board.h`。
 
-## Interaction Model
+## 交互模型
 
-| State | Front button | Side button |
+| 状态 | 正面按钮 | 侧键 |
 | --- | --- | --- |
-| Unpaired / disconnected | No recording; screen shows `VS-XXXX` | No effective action |
-| Connected idle | Hold to record | Restore last input confirmation |
-| Recording | Release to finish recording | Does not cancel the active recording |
-| Thinking / finalizing | New recording is ignored | Cancel the in-progress recognition |
-| Pending confirmation countdown | Pause auto-paste and keep pending confirmation | Cancel pending text |
-| Manual pending confirmation | Confirm paste | Cancel pending text |
+| 未配对 / 未连接 | 不录音；屏幕显示 `VS-XXXX` | 无有效动作 |
+| 已连接空闲 | 按住录音 | 恢复上一次输入确认 |
+| 录音中 | 松开结束录音 | 不取消当前录音 |
+| 思考 / 收尾 | 忽略新的录音 | 取消进行中的识别 |
+| 待确认倒计时 | 暂停自动粘贴并保持待确认 | 取消待确认文本 |
+| 手动待确认 | 确认粘贴 | 取消待确认文本 |
 
-The firmware reports raw button facts (`button_down` / `button_up` with
-`primary` or `secondary`). The macOS app owns the interaction state machine and
-sends `ui_state` updates back to the firmware for the screen.
+固件只上报原始按钮事实，即 `button_down` / `button_up`，并携带 `primary` 或 `secondary`。桌面应用负责交互状态机，并把 `ui_state` 更新发送回固件用于屏幕显示。
 
-By default the paste flow presses Return after paste. Disable `Press Return after paste` in settings, or set `auto_enter = false` in the config file, to paste without sending Return.
+默认粘贴流程会在粘贴后按下 Return。若要只粘贴不发送 Return，可以在设置里关闭 `Press Return after paste`，或在配置文件中设置 `auto_enter = false`。
 
-## Audio Path
+## 音频路径
 
 ```text
-StickS3 mic -> ES8311/I2S PCM -> Opus -> BLE -> macOS -> Ogg Opus -> ASR -> paste
+StickS3 mic -> ES8311/I2S PCM -> Opus -> BLE -> 桌面端 -> Ogg Opus -> ASR -> paste
 ```
 
-The desktop app does not decode Opus back to PCM for ASR. It forwards Ogg Opus directly.
+桌面应用不会为了 ASR 把 Opus 解码回 PCM，而是直接转发 Ogg Opus。
 
-## BLE Protocol Summary
+## BLE 协议摘要
 
-GATT service:
+GATT service：
 
 ```text
 8f2f0b84-6e6f-4b23-88f7-3a3ceafc5100
 ```
 
-Characteristics:
+Characteristics：
 
-| Name | UUID | Direction | Properties |
+| 名称 | UUID | 方向 | 属性 |
 | --- | --- | --- | --- |
-| `audio_tx` | `8f2f0b84-6e6f-4b23-88f7-3a3ceafc5101` | StickS3 -> Mac | notify |
-| `state_tx` | `8f2f0b84-6e6f-4b23-88f7-3a3ceafc5102` | StickS3 -> Mac | notify |
-| `control_rx` | `8f2f0b84-6e6f-4b23-88f7-3a3ceafc5103` | Mac -> StickS3 | write without response |
+| `audio_tx` | `8f2f0b84-6e6f-4b23-88f7-3a3ceafc5101` | StickS3 -> 桌面端 | notify |
+| `state_tx` | `8f2f0b84-6e6f-4b23-88f7-3a3ceafc5102` | StickS3 -> 桌面端 | notify |
+| `control_rx` | `8f2f0b84-6e6f-4b23-88f7-3a3ceafc5103` | 桌面端 -> StickS3 | write without response |
 
-See `docs/protocol.md` for the full frame format.
+完整帧格式见 `docs/protocol.md`。
 
-## Firmware Build
+## 固件构建
 
-Prepare ESP-IDF. The commands below use the local path `~/esp/v5.5.1/esp-idf`; replace it if your ESP-IDF checkout lives elsewhere.
+先准备 ESP-IDF。下面命令假设 ESP-IDF 本地路径是 `~/esp/v5.5.1/esp-idf`；如果你的 ESP-IDF 在其他位置，请替换为实际路径。
 
 ```sh
 cd firmware
@@ -96,111 +94,111 @@ idf.py set-target esp32s3
 idf.py build
 ```
 
-If `export.sh` reports that the ESP-IDF Python virtual environment is missing, run the matching installer once:
+如果 `export.sh` 提示 ESP-IDF Python 虚拟环境不存在，先运行一次对应安装器：
 
 ```sh
 "$HOME/esp/v5.5.1/esp-idf/install.sh" esp32s3
 ```
 
-Flash and monitor:
+烧录并查看串口日志：
 
 ```sh
 idf.py -p /dev/cu.usbmodemXXXX flash monitor
 ```
 
-The firmware uses an OTA partition table with two 3 MB app slots plus a reserved 1984 KB `storage` partition. Devices flashed with the old single-app table need one USB flash to install the new partition table before BLE OTA updates can be used:
+固件使用 OTA 分区表，包含两个 3 MB app slot，以及一个预留 1984 KB 的 `storage` 分区。已经刷过旧单 app 分区表的设备，需要先通过 USB 烧录一次新分区表，之后才能使用 BLE OTA 更新：
 
 ```sh
 idf.py -p /dev/cu.usbmodemXXXX erase-flash flash monitor
 ```
 
-Firmware dependencies are declared through the ESP-IDF component manager:
+固件依赖通过 ESP-IDF component manager 声明：
 
 - `espressif/button`
 - `espressif/esp_codec_dev`
 - `78/esp-opus`
 - `lvgl/lvgl`
 
-## macOS Desktop Build
+## macOS 桌面端构建
 
-The desktop app is a Swift Package targeting macOS 12 or newer.
+桌面应用是一个 Swift Package，目标系统为 macOS 12 或更新版本。
 
 ```sh
 cd desktop/macos
 swift build
 ```
 
-Run it:
+运行应用：
 
 ```sh
 swift run VoiceStickApp
 ```
 
-The app is a menu bar accessory app and requests Bluetooth permission. Text insertion uses simulated `Command-V` plus optional Return. If macOS blocks the keyboard events, grant Accessibility permission to the running terminal or app in System Settings.
+应用是菜单栏辅助应用，会请求蓝牙权限。文本输入使用模拟 `Command-V` 加可选 Return。如果 macOS 阻止键盘事件，请在系统设置中给运行终端或应用授予辅助功能权限。
 
-For a distributable macOS release with Sparkle updates:
+构建带 Sparkle 更新能力的 macOS 分发版本：
 
 ```sh
 SPARKLE_PUBLIC_ED_KEY="..." scripts/build-macos.sh --release
 scripts/make-dmg.sh
 ```
 
-The build script writes `build/VoiceStick-<version>.app`, `build/VoiceStick-<version>.zip`, and a Sparkle signature file. Upload the DMG and ZIP to GitHub Releases, then update `website/appcast.xml` for the GitHub Pages update feed.
+构建脚本会写出 `build/VoiceStick-<version>.app`、`build/VoiceStick-<version>.zip` 和 Sparkle 签名文件。把 DMG 和 ZIP 上传到 GitHub Releases 后，再更新 `website/appcast.xml`，供 GitHub Pages 更新源使用。
 
-For a distributable Windows release with WinSparkle updates, the MSI is the update package. The Windows signing certificate is expected to live on the local signing machine, such as a USB hardware key:
+构建带 WinSparkle 更新能力的 Windows 分发版本时，MSI 是更新包。Windows 签名证书预期放在本地签名机上，例如 USB 硬件密钥：
 
 ```bat
 scripts\build-msi.bat
 ```
 
-The script signs `VoiceStick.exe`, `WinSparkle.dll`, and `VoiceStick_<version>.msi` locally. Upload that MSI to the matching GitHub Release, then manually run the `Deploy Website to GitHub Pages` workflow so the shared appcast points Windows clients at the Release asset URL.
+脚本会在本地签名 `VoiceStick.exe`、`WinSparkle.dll` 和 `VoiceStick_<version>.msi`。把生成的 MSI 上传到匹配的 GitHub Release 后，手动运行 `Deploy Website to GitHub Pages` workflow，让共享 appcast 指向 Release 中的 Windows 资源 URL。
 
-GitHub Actions can do the macOS and firmware release path automatically when a `v<version>` tag is pushed. The tag must match `VERSION`, for example `VERSION=0.2.1` pairs with `v0.2.1`. The release workflow publishes the macOS DMG/ZIP/signature and firmware assets to GitHub Releases, then deploys the website/appcast to GitHub Pages. The Windows MSI is uploaded afterward from the local signing machine. See `docs/release.md` for the full release process, including the Windows-first and Windows-afterward flows.
+推送 `v<version>` 标签后，GitHub Actions 可以自动完成 macOS 和固件发布路径。标签必须与 `VERSION` 匹配，例如 `VERSION=0.2.1` 对应 `v0.2.1`。release workflow 会把 macOS DMG / ZIP / signature 和固件资源发布到 GitHub Releases，然后部署网站和 appcast 到 GitHub Pages。Windows MSI 后续从本地签名机上传。完整发布流程，包括 Windows 优先和 Windows 后补流程，见 `docs/release.md`。
 
-The same release workflow also builds the StickS3 firmware with ESP-IDF v5.5.1 and uploads firmware artifacts to Aliyun OSS:
+同一个 release workflow 还会使用 ESP-IDF v5.5.1 构建 StickS3 固件，并把固件产物上传到阿里云 OSS：
 
-| File | Use |
+| 文件 | 用途 |
 | --- | --- |
-| `voicestick-firmware-sticks3-ota-<version>.bin` | BLE OTA image used by the macOS app |
-| `voicestick-firmware-sticks3-merged-<version>.bin` | Browser/USB flashing image written at offset `0x0` |
-| `manifest.json` | Latest firmware metadata for the app and website |
+| `voicestick-firmware-sticks3-ota-<version>.bin` | macOS 应用使用的 BLE OTA 镜像 |
+| `voicestick-firmware-sticks3-merged-<version>.bin` | 浏览器 / USB 刷写镜像，写入 offset `0x0` |
+| `manifest.json` | 应用和网站使用的最新固件元数据 |
 
-Artifacts are published under both the versioned directory and `latest`:
+产物会同时发布到版本目录和 `latest`：
 
 ```text
 voicestick/firmwares/<version>/manifest.json
 voicestick/firmwares/latest/manifest.json
 ```
 
-The macOS app checks the stable latest manifest URL on app launch, on device connect/reconnect, and at most once every 24 hours while running. The menu also has `Check for Firmware Updates` for a manual refresh. If a connected device reports an older `firmware_version` than the manifest version, its device submenu shows `Update to <version>...`. The app downloads the manifest `ota_url` and verifies `ota_size` plus `ota_sha256` before starting BLE OTA.
+macOS 应用会在启动、设备连接或重连时检查稳定的 latest manifest URL，并且运行期间最多每 24 小时自动检查一次。菜单里也提供 `Check for Firmware Updates` 用于手动刷新。如果已连接设备上报的 `firmware_version` 低于清单版本，它的设备子菜单会显示 `Update to <version>...`。应用会下载清单中的 `ota_url`，并校验 `ota_size` 和 `ota_sha256` 后再开始 BLE OTA。
 
-Configure these GitHub secrets before running the release workflow:
+运行 release workflow 前需要配置以下 GitHub secrets：
 
-| Name | Description |
+| 名称 | 说明 |
 | --- | --- |
-| `ALIYUN_OSS_ACCESS_KEY_ID` | OSS upload access key ID |
-| `ALIYUN_OSS_ACCESS_KEY_SECRET` | OSS upload access key secret |
-| `ALIYUN_OSS_ENDPOINT` | OSS endpoint, for example `https://oss-cn-hangzhou.aliyuncs.com` |
-| `ALIYUN_OSS_BUCKET` | OSS bucket name |
+| `ALIYUN_OSS_ACCESS_KEY_ID` | OSS 上传 Access Key ID |
+| `ALIYUN_OSS_ACCESS_KEY_SECRET` | OSS 上传 Access Key Secret |
+| `ALIYUN_OSS_ENDPOINT` | OSS endpoint，例如 `https://oss-cn-hangzhou.aliyuncs.com` |
+| `ALIYUN_OSS_BUCKET` | OSS bucket 名称 |
 
-Set the repository variable `ALIYUN_OSS_PUBLIC_BASE_URL` to the public OSS base URL, for example `https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com`. Optional variable `ALIYUN_OSS_PREFIX` controls the OSS object prefix and defaults to `voicestick/firmwares`.
+将仓库变量 `ALIYUN_OSS_PUBLIC_BASE_URL` 设置为公开 OSS 基础 URL，例如 `https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com`。可选变量 `ALIYUN_OSS_PREFIX` 用于控制 OSS 对象前缀，默认是 `voicestick/firmwares`。
 
-## Local Config
+## 本地配置
 
-Config path:
+配置路径：
 
 ```text
 ~/Library/Application Support/VoiceStick/config.toml
 ```
 
-Create it from the example:
+从示例创建配置：
 
 ```sh
 mkdir -p "$HOME/Library/Application Support/VoiceStick"
 cp desktop/macos/Config/config.example.toml "$HOME/Library/Application Support/VoiceStick/config.toml"
 ```
 
-Example:
+示例：
 
 ```toml
 asr_provider = "volcengine"
@@ -231,62 +229,62 @@ translation_target = "en"
 # translation_target = "en"
 ```
 
-Fields:
+字段说明：
 
-| Field | Description |
+| 字段 | 说明 |
 | --- | --- |
-| `asr_provider` | `volcengine` or `voicestick_cloud` |
-| `volcengine_api_key` | Direct Volcengine API key, sent as `X-Api-Key` |
-| `voicestick_api_key` | VoiceStick Cloud relay API key, sent as `X-Api-Key` |
+| `asr_provider` | `volcengine` 或 `voicestick_cloud` |
+| `volcengine_api_key` | 直连火山引擎 API key，通过 `X-Api-Key` 发送 |
+| `voicestick_api_key` | VoiceStick Cloud relay API key，通过 `X-Api-Key` 发送 |
 | `voicestick_cloud_url` | Cloud relay WebSocket URL |
 | `llm_base_url` | OpenAI-compatible LLM API base URL |
-| `llm_api_key` | API key for the LLM provider |
-| `llm_model` | LLM model name |
-| `interaction_mode` | Front button interaction: `hold_to_talk` or `click_to_talk` |
-| `resource_id` | Volcengine resource ID |
-| `asr_hotwords` | Comma-separated ASR hotwords; also passed to the LLM as translation terminology hints |
-| `paired_device_ids` | Comma-separated 4-digit hex IDs, for example `C3D8,09AF` |
-| `device_theme_colors` | Optional per-device overlay colors, for example `C3D8:pink,09AF:green` |
-| `device_overlay_positions` | Optional per-device overlay positions, for example `C3D8:top_left,09AF:bottom_right` |
-| `auto_enter` | Whether to press Return after paste |
-| `debug_audio_cache` | Whether to save debug Ogg Opus files |
-| `debug_audio_dir` | Debug audio output directory |
-| `[output].target` | `focused_app` or `subtitle` |
-| `[output].transform` | `original` or `translate` |
-| `[output].translation_target` | Target language code for LLM translation, for example `en` or `zh-Hans` |
-| `[device.<id>.output]` | Optional per-device override for text transform and translation target |
+| `llm_api_key` | LLM 提供方 API key |
+| `llm_model` | LLM 模型名 |
+| `interaction_mode` | 正面按钮交互方式：`hold_to_talk` 或 `click_to_talk` |
+| `resource_id` | 火山引擎 resource ID |
+| `asr_hotwords` | 逗号分隔的 ASR 热词；也会作为翻译术语提示传给 LLM |
+| `paired_device_ids` | 逗号分隔的 4 位十六进制 ID，例如 `C3D8,09AF` |
+| `device_theme_colors` | 可选的按设备覆盖层颜色，例如 `C3D8:pink,09AF:green` |
+| `device_overlay_positions` | 可选的按设备覆盖层位置，例如 `C3D8:top_left,09AF:bottom_right` |
+| `auto_enter` | 粘贴后是否按 Return |
+| `debug_audio_cache` | 是否保存调试 Ogg Opus 文件 |
+| `debug_audio_dir` | 调试音频输出目录 |
+| `[output].target` | `focused_app` 或 `subtitle` |
+| `[output].transform` | `original` 或 `translate` |
+| `[output].translation_target` | LLM 翻译目标语言代码，例如 `en` 或 `zh-Hans` |
+| `[device.<id>.output]` | 可选的按设备覆盖文本转换和翻译目标 |
 
-Supported Volcengine `resource_id` values:
+支持的火山引擎 `resource_id`：
 
 - `volc.seedasr.sauc.duration`
 - `volc.seedasr.sauc.concurrent`
 - `volc.bigasr.sauc.duration`
 - `volc.bigasr.sauc.concurrent`
 
-Do not commit API keys.
+不要提交 API keys。
 
-## Pairing Flow
+## 配对流程
 
-1. Flash and boot the StickS3. The screen shows `VS-XXXX`.
-2. Start the macOS desktop app.
-3. Open `Pair Device...` from the menu bar app.
-4. Select the matching `VS-XXXX` in the scan list and click `Pair`.
-5. After saving, the desktop app scans for and connects to that device. Repeat this flow to pair additional devices.
+1. 烧录并启动 StickS3。屏幕会显示 `VS-XXXX`。
+2. 启动桌面应用。
+3. 从菜单栏应用打开 `Pair Device...`。
+4. 在扫描列表中选择匹配的 `VS-XXXX`，然后点击 `Pair`。
+5. 保存后，桌面应用会扫描并连接该设备。可以重复此流程配对更多设备。
 
-You can also edit `paired_device_ids` manually. When multiple IDs are saved, the desktop app ignores nearby unpaired VoiceStick devices.
+也可以手动编辑 `paired_device_ids`。保存多个 ID 后，桌面应用会忽略附近未配对的 VoiceStick 设备。
 
-## Debug Audio
+## 调试音频
 
-Enable:
+启用方式：
 
 ```toml
 debug_audio_cache = true
 ```
 
-Default output directory:
+默认输出目录：
 
 ```text
 ~/Library/Application Support/VoiceStick/DebugAudio
 ```
 
-Each valid recognition session is saved as a playable Ogg Opus file. Recordings shorter than 0.5 seconds are discarded by the desktop app and are not sent to ASR.
+每个有效识别会话都会保存为可播放的 Ogg Opus 文件。短于 0.5 秒的录音会被桌面应用丢弃，并且不会发送给 ASR。
