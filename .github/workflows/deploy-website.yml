@@ -41,16 +41,26 @@ jobs:
           set -euo pipefail
           curl -fsSL "https://78.github.io/voicestick/appcast.xml" \
             -o website/public/appcast.xml || true
-          tag="$(gh release view --json tagName -q .tagName)"
+          if ! tag="$(gh release view --json tagName -q .tagName 2>/dev/null)"; then
+            echo "No GitHub Release found; keeping existing appcast."
+            exit 0
+          fi
           version="${tag#v}"
           zip_asset="VoiceStick-${version}.zip"
           sig_asset="VoiceStick-${version}.signature"
           zip_length="$(gh release view "$tag" --json assets \
             -q ".assets[] | select(.name == \"${zip_asset}\") | .size")"
+          if [ -z "${zip_length:-}" ]; then
+            echo "Release ${tag} has no ${zip_asset}; keeping existing appcast."
+            exit 0
+          fi
           msi_asset="VoiceStick_${version}.msi"
           msi_length="$(gh release view "$tag" --json assets \
             -q ".assets[] | select(.name == \"${msi_asset}\") | .size" || true)"
-          gh release download "$tag" --pattern "$sig_asset" --dir "$RUNNER_TEMP"
+          if ! gh release download "$tag" --pattern "$sig_asset" --dir "$RUNNER_TEMP"; then
+            echo "Release ${tag} has no ${sig_asset}; keeping existing appcast."
+            exit 0
+          fi
           signature="$(cat "$RUNNER_TEMP/$sig_asset" | tr -d '\n')"
           notes="$(gh release view "$tag" --json body -q .body)"
           args=(
