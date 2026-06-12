@@ -39,7 +39,9 @@ jobs:
       - name: Update appcast from latest release
         run: |
           set -euo pipefail
-          curl -fsSL "https://78.github.io/voicestick/appcast.xml" \
+          pages_host="${GITHUB_REPOSITORY_OWNER}.github.io"
+          pages_repo="${GITHUB_REPOSITORY#*/}"
+          curl -fsSL "https://${pages_host}/${pages_repo}/appcast.xml" \
             -o website/public/appcast.xml || true
           if ! tag="$(gh release view --json tagName -q .tagName 2>/dev/null)"; then
             echo "No GitHub Release found; keeping existing appcast."
