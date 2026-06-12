@@ -65,14 +65,14 @@ jobs:
           notes="$(gh release view "$tag" --json body -q .body)"
           args=(
             --version "$version" \
-            --zip-url "https://github.com/78/voicestick/releases/download/${tag}/${zip_asset}" \
+            --zip-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${zip_asset}" \
             --signature "$signature" \
             --length "$zip_length" \
             --release-notes "$notes"
           )
           if [ -n "${msi_length:-}" ]; then
             args+=(
-              --msi-url "https://github.com/78/voicestick/releases/download/${tag}/${msi_asset}" \
+              --msi-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${msi_asset}" \
               --msi-length "$msi_length" \
             )
           fi
