@@ -19,6 +19,7 @@ ROOT_DIR="$SCRIPT_DIR/.."
 DESKTOP_DIR="$ROOT_DIR/desktop/macos"
 BUILD_DIR="$ROOT_DIR/build"
 PLIST="$DESKTOP_DIR/Sources/VoiceStickApp/Info.plist"
+ENTITLEMENTS="$DESKTOP_DIR/VoiceStick.entitlements"
 VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 CONFIG="${1:---release}"
 TARGET_ARCHS="arm64 x86_64"
@@ -43,6 +44,11 @@ esac
 
 if [ -z "$VERSION" ]; then
     echo "Error: VERSION is empty"
+    exit 1
+fi
+
+if [ ! -f "$ENTITLEMENTS" ]; then
+    echo "Error: entitlements file not found: $ENTITLEMENTS"
     exit 1
 fi
 
@@ -122,11 +128,16 @@ fi
 
 sign_code() {
     local path="$1"
+    local entitlements="${2:-}"
     codesign --remove-signature "$path" 2>/dev/null || true
+    local args=(--force --options runtime)
+    if [ -n "$entitlements" ]; then
+        args+=(--entitlements "$entitlements")
+    fi
     if [ "$CODESIGN_IDENTITY" != "-" ]; then
-        codesign --force --options runtime --sign "$CODESIGN_IDENTITY" "$path"
+        codesign "${args[@]}" --sign "$CODESIGN_IDENTITY" "$path"
     else
-        codesign --force --options runtime --sign - "$path"
+        codesign "${args[@]}" --sign - "$path"
     fi
 }
 
@@ -152,10 +163,23 @@ else
     echo "Using ad-hoc signature."
 fi
 sign_embedded_frameworks "$APP_DIR"
-sign_code "$APP_DIR"
+sign_code "$APP_DIR" "$ENTITLEMENTS"
 
 echo "Verifying app signature..."
 codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+
+echo "Checking app entitlements..."
+if ! codesign -d --entitlements - "$APP_DIR" 2>/dev/null | plutil -extract com.apple.security.cs.disable-library-validation raw - 2>/dev/null | grep -q '^1$'; then
+    echo "Error: app signature is missing com.apple.security.cs.disable-library-validation."
+    exit 1
+fi
+
+SPARKLE_BINARY="$APP_DIR/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle"
+if [ -f "$SPARKLE_BINARY" ]; then
+    echo "Checking Sparkle load path and signature..."
+    otool -L "$APP_DIR/Contents/MacOS/VoiceStickApp" | grep -q '@rpath/Sparkle.framework/Versions/B/Sparkle'
+    codesign --verify --strict --verbose=2 "$APP_DIR/Contents/Frameworks/Sparkle.framework"
+fi
 
 ZIP_PATH="$BUILD_DIR/VoiceStick-${VERSION}.zip"
 SIGNATURE_PATH="${ZIP_PATH%.zip}.signature"

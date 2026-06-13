@@ -14,11 +14,17 @@ BUILD_DIR="$ROOT_DIR/build"
 VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 APP_PATH="${1:-$BUILD_DIR/VoiceStick-${VERSION}.app}"
 OUTPUT="${2:-$BUILD_DIR/VoiceStick-${VERSION}.dmg}"
+ENTITLEMENTS="$ROOT_DIR/desktop/macos/VoiceStick.entitlements"
 STAGING_DIR="$BUILD_DIR/.dmg-staging"
 VOLUME_NAME="VoiceStick"
 
 if [ ! -d "$APP_PATH" ]; then
     echo "Error: Application bundle not found: $APP_PATH"
+    exit 1
+fi
+
+if [ ! -f "$ENTITLEMENTS" ]; then
+    echo "Error: entitlements file not found: $ENTITLEMENTS"
     exit 1
 fi
 
@@ -29,11 +35,16 @@ fi
 
 sign_code() {
     local path="$1"
+    local entitlements="${2:-}"
     codesign --remove-signature "$path" 2>/dev/null || true
+    local args=(--force --options runtime)
+    if [ -n "$entitlements" ]; then
+        args+=(--entitlements "$entitlements")
+    fi
     if [ "$CODESIGN_IDENTITY" != "-" ]; then
-        codesign --force --options runtime --sign "$CODESIGN_IDENTITY" "$path"
+        codesign "${args[@]}" --sign "$CODESIGN_IDENTITY" "$path"
     else
-        codesign --force --options runtime --sign - "$path"
+        codesign "${args[@]}" --sign - "$path"
     fi
 }
 
@@ -58,10 +69,22 @@ else
     echo "Using ad-hoc signature."
 fi
 sign_embedded_frameworks "$APP_PATH"
-sign_code "$APP_PATH"
+sign_code "$APP_PATH" "$ENTITLEMENTS"
 
 echo "Verifying app signature..."
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+echo "Checking app entitlements..."
+if ! codesign -d --entitlements - "$APP_PATH" 2>/dev/null | plutil -extract com.apple.security.cs.disable-library-validation raw - 2>/dev/null | grep -q '^1$'; then
+    echo "Error: app signature is missing com.apple.security.cs.disable-library-validation."
+    exit 1
+fi
+
+SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+if [ -d "$SPARKLE_FRAMEWORK" ]; then
+    echo "Checking Sparkle signature..."
+    codesign --verify --strict --verbose=2 "$SPARKLE_FRAMEWORK"
+fi
 
 rm -rf "$STAGING_DIR" "$OUTPUT"
 mkdir -p "$STAGING_DIR"
