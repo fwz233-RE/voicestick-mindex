@@ -59,19 +59,24 @@ jobs:
           windows_asset="VoiceStickSetup-${version}.exe"
           windows_length="$(gh release view "$tag" --json assets \
             -q ".assets[] | select(.name == \"${windows_asset}\") | .size" || true)"
-          if ! gh release download "$tag" --pattern "$sig_asset" --dir "$RUNNER_TEMP"; then
-            echo "Release ${tag} has no ${sig_asset}; keeping existing appcast."
-            exit 0
+          signature=""
+          if gh release download "$tag" --pattern "$sig_asset" --dir "$RUNNER_TEMP"; then
+            signature="$(cat "$RUNNER_TEMP/$sig_asset" | tr -d '\n')"
+          else
+            echo "Release ${tag} has no ${sig_asset}; keeping existing macOS appcast item."
           fi
-          signature="$(cat "$RUNNER_TEMP/$sig_asset" | tr -d '\n')"
           notes="$(gh release view "$tag" --json body -q .body)"
           args=(
             --version "$version" \
-            --zip-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${zip_asset}" \
-            --signature "$signature" \
-            --length "$zip_length" \
             --release-notes "$notes"
           )
+          if [ -n "${signature:-}" ]; then
+            args+=(
+              --zip-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${zip_asset}" \
+              --signature "$signature" \
+              --length "$zip_length" \
+            )
+          fi
           if [ -n "${windows_length:-}" ]; then
             args+=(
               --windows-installer-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${windows_asset}" \
