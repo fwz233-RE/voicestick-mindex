@@ -235,7 +235,6 @@ async function flashFirmware() {
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="./" aria-label="VoiceStick">
-        <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
         <span>VoiceStick</span>
       </a>
       <nav>
@@ -258,6 +257,9 @@ async function flashFirmware() {
           <a class="button primary mac" :href="macDownloadUrl">{{ t('hero.downloadMac') }}</a>
           <a class="button primary windows" :href="windowsDownloadUrl">{{ t('hero.downloadWindows') }}</a>
         </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <img class="hero-logo" :src="appIcon" alt="">
       </div>
     </section>
 
