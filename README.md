@@ -11,7 +11,7 @@ Voice Stick 可以把 M5Stack StickS3 变成一个面向桌面端的蓝牙按住
 - `desktop/windows/`：Windows 桌面应用工作区。
 - `desktop/linux/`：Linux 桌面应用工作区。
 - `docs/protocol.md`：StickS3 和桌面应用之间的 BLE 协议。
-- `docs/volcengine-asr.md`：桌面客户端使用的精简版火山引擎 ASR 说明。
+- `docs/volcengine-asr.md`：可选火山引擎 ASR 直连说明。
 - `scripts/`：精灵图切片、调色和 LVGL ARGB 二进制转换辅助脚本。
 
 ## 当前功能
@@ -21,7 +21,7 @@ Voice Stick 可以把 M5Stack StickS3 变成一个面向桌面端的蓝牙按住
 - 正面按钮对应协议里的 `primary` 角色；当应用把设备置于 `ready` 后，按下开始录音，松开结束录音。
 - 固件从 ES8311 麦克风读取 16 kHz 单声道 PCM，编码为 Opus，并通过 BLE notify 发送。
 - 桌面应用把收到的 Opus 载荷封装为 Ogg Opus，并通过 WebSocket 转发给 ASR。
-- ASR 提供方可以是直连火山引擎，也可以是 VoiceStick Cloud relay。
+- ASR 提供方默认是阿里云 DashScope，也可以按配置切换为豆包、直连火山引擎或 VoiceStick Cloud relay。
 - 识别过程中，桌面应用会显示浮动提示层和菜单栏状态。按钮松开后，固件屏幕会保持 thinking 状态，直到文本被粘贴或取消。
 - 最终文本会进入 1.2 秒确认倒计时。
 - 倒计时期间按正面按钮会暂停自动粘贴。再次按正面按钮确认粘贴；按侧键取消。
@@ -201,13 +201,16 @@ cp desktop/macos/Config/config.example.toml "$HOME/Library/Application Support/V
 示例：
 
 ```toml
-asr_provider = "volcengine"
+asr_provider = "aliyun"
 voicestick_api_key = ""
 voicestick_cloud_url = "wss://api.xiaozhi.me/voicestick/asr/"
-volcengine_api_key = "your_volcengine_asr_api_key"
-llm_base_url = "https://api.openai.com/v1"
-llm_api_key = "your_openai_compatible_llm_api_key"
-llm_model = "gpt-5.5"
+volcengine_api_key = ""
+aliyun_api_key = ""
+aliyun_asr_url = "wss://dashscope.aliyuncs.com/api-ws/v1/inference/"
+aliyun_asr_model = "fun-asr-realtime"
+llm_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+llm_api_key = ""
+llm_model = "qwen3.6-flash"
 interaction_mode = "hold_to_talk"
 resource_id = "volc.seedasr.sauc.duration"
 asr_hotwords = "小智,VoiceStick"
@@ -233,8 +236,11 @@ translation_target = "en"
 
 | 字段 | 说明 |
 | --- | --- |
-| `asr_provider` | `volcengine` 或 `voicestick_cloud` |
-| `volcengine_api_key` | 直连火山引擎 API key，通过 `X-Api-Key` 发送 |
+| `asr_provider` | `aliyun`、`volcengine` 或 `voicestick_cloud`，默认主用 `aliyun` |
+| `volcengine_api_key` | 可选火山引擎 API key，通过 `X-Api-Key` 发送 |
+| `aliyun_api_key` | 可选阿里云 DashScope API key；留空时使用内置 Key |
+| `aliyun_asr_url` | 阿里云实时语音识别 WebSocket URL |
+| `aliyun_asr_model` | 阿里云实时语音识别模型名 |
 | `voicestick_api_key` | VoiceStick Cloud relay API key，通过 `X-Api-Key` 发送 |
 | `voicestick_cloud_url` | Cloud relay WebSocket URL |
 | `llm_base_url` | OpenAI-compatible LLM API base URL |

@@ -62,14 +62,11 @@ nav {
   font-weight: 650;
 }
 
-.brand-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 50%, #000000 0 20%, transparent 21%),
-    conic-gradient(from 30deg, var(--accent), var(--blue), #f8fafc, var(--accent));
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+.brand-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: block;
 }
 
 nav a {
@@ -103,7 +100,7 @@ main {
   width: min(100%, 1120px);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.88fr);
+  grid-template-columns: minmax(0, 760px);
   gap: clamp(24px, 4vw, 48px);
   align-items: center;
   padding: clamp(44px, 7vw, 84px) clamp(20px, 4vw, 40px) 38px;
@@ -172,33 +169,6 @@ h1 {
 .button.secondary {
   color: var(--ink);
   background: var(--panel);
-}
-
-.product-visual {
-  position: relative;
-  min-height: 560px;
-  display: grid;
-  place-items: center;
-}
-
-.product-visual::before {
-  content: "";
-  position: absolute;
-  width: min(78vw, 520px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: #07111c;
-  filter: blur(2px);
-  z-index: -1;
-}
-
-.product-photo {
-  width: min(70vw, 390px);
-  height: auto;
-  display: block;
-  filter: drop-shadow(0 30px 46px rgba(0, 0, 0, 0.64));
-  -webkit-mask-image: radial-gradient(ellipse 48% 48% at 50% 50%, #000 64%, rgba(0, 0, 0, 0.86) 72%, rgba(0, 0, 0, 0.34) 84%, transparent 100%);
-  mask-image: radial-gradient(ellipse 48% 48% at 50% 50%, #000 64%, rgba(0, 0, 0, 0.86) 72%, rgba(0, 0, 0, 0.34) 84%, transparent 100%);
 }
 
 .features {
@@ -351,6 +321,14 @@ h2 {
   opacity: 0.55;
 }
 
+.firmware-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .browser-warning {
   color: #fca5a5;
 }
@@ -391,10 +369,6 @@ footer {
   .hero {
     grid-template-columns: 1fr;
     min-height: auto;
-  }
-
-  .product-visual {
-    min-height: 560px;
   }
 
   .features-grid {

@@ -7,12 +7,11 @@
   "hero": {
     "eyebrow": "BLE 随身语音输入器",
     "title": "VoiceStick",
-    "lead": "基于 M5Stack StickS3 的小巧语音棒。通过 BLE 低功耗蓝牙连接 macOS 或 Windows，接入豆包语音大模型，并把实时反馈的文本输入到当前光标位置。",
+    "lead": "基于 M5Stack StickS3 的小巧语音棒。通过 BLE 低功耗蓝牙连接 macOS 或 Windows，默认主用阿里云实时语音识别，也可切换豆包等已有 ASR 实现，并把实时反馈的文本输入到当前光标位置。",
     "downloadMac": "下载 macOS",
     "downloadWindows": "下载 Windows",
     "flash": "在线烧录固件",
-    "source": "查看源码",
-    "imageAlt": "VoiceStick 基于 M5Stack StickS3 的随身语音输入器"
+    "source": "查看源码"
   },
   "features": {
     "label": "功能",
@@ -21,8 +20,8 @@
       "body": "通过 BLE 连接你手上的 StickS3 设备，低功耗、无线、随拿随用，适合长期放在桌面或随身携带。"
     },
     "model": {
-      "title": "豆包语音大模型",
-      "body": "接入豆包语音大模型做语音识别，对中文口语、长句和日常表达更友好，把想法快速变成可编辑文本。"
+      "title": "阿里云实时语音识别",
+      "body": "默认使用阿里云 DashScope 实时语音识别，对中文口语、长句和日常表达更友好。"
     },
     "feedback": {
       "title": "实时反馈输入",
@@ -46,12 +45,14 @@
     "button": {
       "start": "开始烧录",
       "flashing": "烧录中",
+      "chooseFirmware": "选择本地固件",
       "download": "下载固件"
     },
     "status": {
       "idle": "准备就绪",
       "connecting": "正在连接",
       "downloading": "正在下载固件",
+      "selectingFirmware": "等待选择固件",
       "flashing": "正在写入 Flash",
       "resetting": "正在重启设备",
       "done": "烧录完成",
@@ -72,6 +73,8 @@
       "connecting": "正在同步 ESP32-S3 bootloader...",
       "downloading": "正在下载 Release 固件...",
       "downloaded": "固件下载完成：{size}",
+      "selectLocal": "Release 固件下载失败，请选择本地 .bin 固件继续。",
+      "localSelected": "已选择本地固件：{name}（{size}）",
       "flashing": "开始写入 merged 固件到 0x0...",
       "done": "烧录完成，已发送设备重启信号。"
     },

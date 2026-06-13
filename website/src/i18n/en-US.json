@@ -7,12 +7,11 @@
   "hero": {
     "eyebrow": "Portable BLE voice input",
     "title": "VoiceStick",
-    "lead": "A compact voice stick based on M5Stack StickS3. It connects to macOS or Windows over BLE, uses the Doubao speech foundation model for recognition, and turns real-time feedback into text at your cursor.",
+    "lead": "A compact voice stick based on M5Stack StickS3. It connects to macOS or Windows over BLE, uses Alibaba Cloud DashScope real-time speech recognition by default, can switch to existing Doubao-related ASR support, and turns live feedback into text at your cursor.",
     "downloadMac": "Download macOS",
     "downloadWindows": "Download Windows",
     "flash": "Flash firmware online",
-    "source": "View source",
-    "imageAlt": "VoiceStick portable voice input device based on M5Stack StickS3"
+    "source": "View source"
   },
   "features": {
     "label": "Features",
@@ -21,8 +20,8 @@
       "body": "Pair the StickS3 in your hand over Bluetooth Low Energy. It is wireless, efficient, and ready to stay on your desk or travel with your laptop."
     },
     "model": {
-      "title": "Doubao speech foundation model",
-      "body": "VoiceStick uses the Doubao speech foundation model for recognition, making spoken Chinese, longer sentences, and everyday phrasing feel fast to turn into editable text."
+      "title": "Alibaba Cloud real-time ASR",
+      "body": "VoiceStick uses Alibaba Cloud DashScope real-time speech recognition by default for fast everyday dictation."
     },
     "feedback": {
       "title": "Live text feedback",
@@ -46,12 +45,14 @@
     "button": {
       "start": "Start flashing",
       "flashing": "Flashing",
+      "chooseFirmware": "Choose local firmware",
       "download": "Download firmware"
     },
     "status": {
       "idle": "Ready",
       "connecting": "Connecting",
       "downloading": "Downloading firmware",
+      "selectingFirmware": "Waiting for firmware",
       "flashing": "Writing Flash",
       "resetting": "Resetting device",
       "done": "Flash complete",
@@ -72,6 +73,8 @@
       "connecting": "Syncing ESP32-S3 bootloader...",
       "downloading": "Downloading Release firmware...",
       "downloaded": "Firmware downloaded: {size}",
+      "selectLocal": "Release firmware download failed. Choose a local .bin firmware file to continue.",
+      "localSelected": "Local firmware selected: {name} ({size})",
       "flashing": "Writing merged firmware to 0x0...",
       "done": "Flashing complete. A reset signal was sent to the device."
     },

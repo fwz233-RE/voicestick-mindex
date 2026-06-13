@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ESPLoader, Transport } from 'esptool-js'
 import { setLocale } from './i18n'
-import productPhoto from './assets/sticks3.png'
+import appIcon from './assets/app-icon.png'
 import packageInfo from '../package.json'
 
 const { locale, t } = useI18n()
@@ -20,7 +20,9 @@ const appResetSequence = 'D0|R1|W100|R0|W500|D0'
 const languageLabel = computed(() => (locale.value === 'zh-CN' ? t('language.en') : t('language.zh')))
 const nextLocale = computed(() => (locale.value === 'zh-CN' ? 'en-US' : 'zh-CN'))
 const serialSupported = computed(() => typeof navigator !== 'undefined' && 'serial' in navigator)
+const waitingForLocalFirmware = computed(() => flashStatus.value === 'selectingFirmware')
 const canFlash = computed(() => serialSupported.value && !flashing.value)
+const canChooseLocalFirmware = computed(() => waitingForLocalFirmware.value && flashing.value)
 
 const flashing = ref(false)
 const flashStatus = ref('idle')
@@ -28,6 +30,9 @@ const flashProgress = ref(0)
 const flashLog = ref([])
 const connectedChip = ref('')
 const firmwareSize = ref('')
+const firmwareFileInput = ref(null)
+let pendingFirmwareFileResolver
+let pendingFirmwareFileRejecter
 
 const terminal = {
   clean() {
@@ -70,20 +75,70 @@ function formatBytes(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+async function readFirmwareFile(file) {
+  const firmware = new Uint8Array(await file.arrayBuffer())
+  firmwareSize.value = formatBytes(firmware.byteLength)
+  appendLog(t('flasher.log.localSelected', { name: file.name, size: firmwareSize.value }))
+  return firmware
+}
+
+function chooseLocalFirmware() {
+  firmwareFileInput.value?.click()
+}
+
+function clearPendingFirmwareFile() {
+  pendingFirmwareFileResolver = undefined
+  pendingFirmwareFileRejecter = undefined
+}
+
+function requestLocalFirmwareFile() {
+  flashStatus.value = 'selectingFirmware'
+  appendLog(t('flasher.log.selectLocal'))
+
+  return new Promise((resolve, reject) => {
+    pendingFirmwareFileResolver = resolve
+    pendingFirmwareFileRejecter = reject
+    firmwareFileInput.value?.click()
+  })
+}
+
+async function handleFirmwareFileChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+
+  if (!file || !pendingFirmwareFileResolver) {
+    return
+  }
+
+  try {
+    const firmware = await readFirmwareFile(file)
+    pendingFirmwareFileResolver(firmware)
+  } catch (error) {
+    pendingFirmwareFileRejecter?.(error)
+  } finally {
+    clearPendingFirmwareFile()
+  }
+}
+
 async function fetchFirmware() {
   flashStatus.value = 'downloading'
   appendLog(t('flasher.log.downloading'))
 
-  await resolveFirmwareUrl()
-  const response = await fetch(firmwareUrl.value, { cache: 'no-store' })
-  if (!response.ok) {
-    throw new Error(t('flasher.error.downloadFailed', { status: response.status }))
-  }
+  try {
+    await resolveFirmwareUrl()
+    const response = await fetch(firmwareUrl.value, { cache: 'no-store' })
+    if (!response.ok) {
+      throw new Error(t('flasher.error.downloadFailed', { status: response.status }))
+    }
 
-  const firmware = new Uint8Array(await response.arrayBuffer())
-  firmwareSize.value = formatBytes(firmware.byteLength)
-  appendLog(t('flasher.log.downloaded', { size: firmwareSize.value }))
-  return firmware
+    const firmware = new Uint8Array(await response.arrayBuffer())
+    firmwareSize.value = formatBytes(firmware.byteLength)
+    appendLog(t('flasher.log.downloaded', { size: firmwareSize.value }))
+    return firmware
+  } catch (error) {
+    appendLog(error?.message || String(error))
+    return requestLocalFirmwareFile()
+  }
 }
 
 async function resolveFirmwareUrl() {
@@ -163,6 +218,7 @@ async function flashFirmware() {
       appendLog(error?.message || String(error))
     }
   } finally {
+    clearPendingFirmwareFile()
     flashing.value = false
     if (transport) {
       try {
@@ -179,7 +235,7 @@ async function flashFirmware() {
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="./" aria-label="VoiceStick">
-        <span class="brand-mark" aria-hidden="true"></span>
+        <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
         <span>VoiceStick</span>
       </a>
       <nav>
@@ -202,9 +258,6 @@ async function flashFirmware() {
           <a class="button primary mac" :href="macDownloadUrl">{{ t('hero.downloadMac') }}</a>
           <a class="button primary windows" :href="windowsDownloadUrl">{{ t('hero.downloadWindows') }}</a>
         </div>
-      </div>
-      <div class="product-visual" :aria-label="t('hero.imageAlt')">
-        <img class="product-photo" :src="productPhoto" :alt="t('hero.imageAlt')">
       </div>
     </section>
 
@@ -263,7 +316,17 @@ async function flashFirmware() {
             <button class="button primary" type="button" :disabled="!canFlash" @click="flashFirmware">
               {{ flashing ? t('flasher.button.flashing') : t('flasher.button.start') }}
             </button>
+            <button class="button secondary" type="button" :disabled="!canChooseLocalFirmware" @click="chooseLocalFirmware">
+              {{ t('flasher.button.chooseFirmware') }}
+            </button>
             <a class="button secondary" :href="firmwareUrl">{{ t('flasher.button.download') }}</a>
+            <input
+              ref="firmwareFileInput"
+              class="firmware-file-input"
+              type="file"
+              accept=".bin,application/octet-stream"
+              @change="handleFirmwareFileChange"
+            >
           </div>
 
           <p v-if="!serialSupported" class="browser-warning">{{ t('flasher.unsupported') }}</p>
