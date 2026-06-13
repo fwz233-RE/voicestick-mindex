@@ -75,9 +75,13 @@ echo "Verifying app signature..."
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
 echo "Checking app entitlements..."
-if ! codesign -d --entitlements :- "$APP_PATH" 2>/dev/null | plutil -extract com.apple.security.cs.disable-library-validation raw - 2>/dev/null | grep -q '^1$'; then
-    echo "Error: app signature is missing com.apple.security.cs.disable-library-validation."
-    exit 1
+if [ "$CODESIGN_IDENTITY" != "-" ]; then
+    if ! codesign -d --entitlements :- "$APP_PATH" 2>/dev/null | plutil -extract com.apple.security.cs.disable-library-validation raw - 2>/dev/null | grep -Eq '^(1|true)$'; then
+        echo "Error: app signature is missing com.apple.security.cs.disable-library-validation."
+        exit 1
+    fi
+else
+    echo "Skipping entitlement check for ad-hoc signature."
 fi
 
 SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
