@@ -28,20 +28,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(appItem)
 
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Quit VoiceStick", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "退出 VoiceStick", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
 
         let editItem = NSMenuItem()
         mainMenu.addItem(editItem)
 
-        let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        let editMenu = NSMenu(title: "编辑")
+        editMenu.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "Z")
         editMenu.addItem(NSMenuItem.separator())
-        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = editMenu
 
         NSApp.mainMenu = mainMenu
@@ -132,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 updaterController.updater.checkForUpdates()
             }
         }
-        statusController.setStatus(config.pairedDeviceIDs.isEmpty ? "Pair a VoiceStick" : "Ready")
+        statusController.setStatus(config.pairedDeviceIDs.isEmpty ? "需要配对 VoiceStick" : "就绪")
         coordinator.start()
     }
 
@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             coordinator?.updateConfig(config)
         } catch {
-            statusController?.setStatus("Input save failed")
+            statusController?.setStatus("输入设置保存失败")
         }
     }
 
@@ -169,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.config = config
             statusController?.setDeviceThemeColors(config.deviceThemeColors)
         } catch {
-            statusController?.setStatus("Theme save failed")
+            statusController?.setStatus("主题保存失败")
         }
     }
 
@@ -182,7 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusController?.setDefaultOutputProfile(profile)
             coordinator?.updateConfig(config)
         } catch {
-            statusController?.setStatus("Output save failed")
+            statusController?.setStatus("输出设置保存失败")
         }
     }
 
@@ -205,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusController?.setDeviceOutputProfiles(config.deviceOutputProfiles)
             coordinator?.updateConfig(config)
         } catch {
-            statusController?.setStatus("Output save failed")
+            statusController?.setStatus("输出设置保存失败")
         }
     }
 
@@ -221,7 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.config = config
             statusController?.setDeviceOverlayPositions(config.deviceOverlayPositions)
         } catch {
-            statusController?.setStatus("Position save failed")
+            statusController?.setStatus("位置保存失败")
         }
     }
 
@@ -270,7 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.coordinator?.updatePairedDeviceIDs(config.pairedDeviceIDs)
                 self?.coordinator?.checkFirmwareAfterPairing(deviceID: deviceID)
             } catch {
-                self?.statusController?.setStatus("Pair save failed")
+                self?.statusController?.setStatus("配对保存失败")
             }
         }
         pairDeviceWindowController = controller
@@ -303,10 +303,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                           latestVersion: String,
                                           isBelowMinimum: Bool) {
         let alert = NSAlert()
-        alert.messageText = isBelowMinimum ? "Firmware update recommended" : "Firmware update available"
-        alert.informativeText = "VS-\(deviceID) is running firmware \(currentVersion). The latest firmware is \(latestVersion)."
-        alert.addButton(withTitle: "Update Firmware")
-        alert.addButton(withTitle: "Later")
+        alert.messageText = isBelowMinimum ? "建议更新固件" : "有可用固件更新"
+        alert.informativeText = "VS-\(deviceID) 当前运行固件 \(currentVersion)。最新固件为 \(latestVersion)。"
+        alert.addButton(withTitle: "更新固件")
+        alert.addButton(withTitle: "稍后")
         if alert.runModal() == .alertFirstButtonReturn {
             updateFirmwareFromLatest(for: deviceID)
         }
@@ -383,7 +383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusController?.setConnectedDevices([])
             coordinator?.updatePairedDeviceIDs(config.pairedDeviceIDs)
         } catch {
-            statusController?.setStatus("Forget device failed")
+            statusController?.setStatus("忘记设备失败")
         }
     }
 }

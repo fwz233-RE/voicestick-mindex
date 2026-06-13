@@ -3,6 +3,11 @@
 #include "ble_protocol.h"
 #include "toml.hpp"
 
+#if __has_include("private/embedded_api_key.h")
+#include "private/embedded_api_key.h"
+#define VOICESTICK_HAS_PRIVATE_EMBEDDED_API_KEY 1
+#endif
+
 #include <Windows.h>
 #include <ShlObj.h>
 
@@ -21,6 +26,8 @@ namespace voicestick {
 namespace {
 
 constexpr const char* kVolcengineUrl = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
+constexpr const char* kAliyunDashScopeApiKeyEnv = "DASHSCOPE_API_KEY";
+constexpr const char* kAliyunApiKeyEnv = "ALIYUN_API_KEY";
 
 std::filesystem::path KnownFolder(REFKNOWNFOLDERID folder_id, const wchar_t* fallback_env) {
     PWSTR path = nullptr;
@@ -42,6 +49,42 @@ std::string Trim(std::string value) {
     value.erase(value.begin(), std::find_if_not(value.begin(), value.end(), is_space));
     value.erase(std::find_if_not(value.rbegin(), value.rend(), is_space).base(), value.end());
     return value;
+}
+
+std::string EnvironmentValue(const char* name) {
+    char buffer[8192]{};
+    const DWORD len = GetEnvironmentVariableA(name, buffer, static_cast<DWORD>(sizeof(buffer)));
+    if (len == 0 || len >= sizeof(buffer)) return {};
+    return Trim(std::string(buffer, len));
+}
+
+std::string AliyunEnvironmentApiKey() {
+    auto key = EnvironmentValue(kAliyunDashScopeApiKeyEnv);
+    if (!key.empty()) return key;
+    return EnvironmentValue(kAliyunApiKeyEnv);
+}
+
+std::string EmbeddedAliyunApiKey() {
+#ifdef VOICESTICK_HAS_PRIVATE_EMBEDDED_API_KEY
+    return Trim(private_config::EmbeddedAliyunApiKey());
+#else
+    return {};
+#endif
+}
+
+std::string EffectiveAliyunApiKey(const std::string& configured_key) {
+    auto key = Trim(configured_key);
+    if (!key.empty()) return key;
+    key = AliyunEnvironmentApiKey();
+    if (!key.empty()) return key;
+    return EmbeddedAliyunApiKey();
+}
+
+ApiKeySource AliyunApiKeySourceFor(const std::string& configured_key) {
+    if (!Trim(configured_key).empty()) return ApiKeySource::kConfigured;
+    if (!AliyunEnvironmentApiKey().empty()) return ApiKeySource::kEnvironment;
+    if (!EmbeddedAliyunApiKey().empty()) return ApiKeySource::kEmbedded;
+    return ApiKeySource::kMissing;
 }
 
 std::string Unquote(std::string value) {
@@ -231,6 +274,9 @@ void ApplyConfigValue(AppConfig& config, const std::string& key, const std::stri
     if (key == "voicestick_api_key") config.voicestick_api_key = value;
     if (key == "voicestick_cloud_url") config.voicestick_cloud_url = value;
     if (key == "volcengine_api_key" || key == "api_key") config.volcengine_api_key = value;
+    if (key == "aliyun_api_key") config.aliyun_api_key = value;
+    if (key == "aliyun_asr_url") config.aliyun_asr_url = value;
+    if (key == "aliyun_asr_model") config.aliyun_asr_model = value;
     if (key == "llm_base_url") config.llm_base_url = value;
     if (key == "llm_api_key") config.llm_api_key = value;
     if (key == "llm_model") config.llm_model = value;
@@ -300,6 +346,9 @@ AppConfig AppConfig::Load() {
         if (auto value = TomlString(table, "voicestick_cloud_url")) config.voicestick_cloud_url = *value;
         if (auto value = TomlString(table, "volcengine_api_key")) config.volcengine_api_key = *value;
         if (auto value = TomlString(table, "api_key")) config.volcengine_api_key = *value;
+        if (auto value = TomlString(table, "aliyun_api_key")) config.aliyun_api_key = *value;
+        if (auto value = TomlString(table, "aliyun_asr_url")) config.aliyun_asr_url = *value;
+        if (auto value = TomlString(table, "aliyun_asr_model")) config.aliyun_asr_model = *value;
         if (auto value = TomlString(table, "llm_base_url")) config.llm_base_url = *value;
         if (auto value = TomlString(table, "llm_api_key")) config.llm_api_key = *value;
         if (auto value = TomlString(table, "llm_model")) config.llm_model = *value;
@@ -372,6 +421,9 @@ void AppConfig::Save() const {
     output << "voicestick_api_key = \"" << TomlEscape(voicestick_api_key) << "\"\n";
     output << "voicestick_cloud_url = \"" << TomlEscape(voicestick_cloud_url) << "\"\n";
     output << "volcengine_api_key = \"" << TomlEscape(volcengine_api_key) << "\"\n";
+    output << "aliyun_api_key = \"" << TomlEscape(aliyun_api_key) << "\"\n";
+    output << "aliyun_asr_url = \"" << TomlEscape(aliyun_asr_url) << "\"\n";
+    output << "aliyun_asr_model = \"" << TomlEscape(aliyun_asr_model) << "\"\n";
     output << "llm_base_url = \"" << TomlEscape(llm_base_url) << "\"\n";
     output << "llm_api_key = \"" << TomlEscape(llm_api_key) << "\"\n";
     output << "llm_model = \"" << TomlEscape(llm_model) << "\"\n";
@@ -417,13 +469,39 @@ void AppConfig::Save() const {
 }
 
 std::string AppConfig::ActiveApiKey() const {
-    return asr_provider == AsrProvider::kVoiceStickCloud ? voicestick_api_key : volcengine_api_key;
+    switch (asr_provider) {
+    case AsrProvider::kVoiceStickCloud:
+        return voicestick_api_key;
+    case AsrProvider::kVolcengine:
+        return volcengine_api_key;
+    case AsrProvider::kAliyun:
+        return EffectiveAliyunApiKey(aliyun_api_key);
+    }
+    return {};
 }
 
 std::string AppConfig::ActiveWebsocketUrl() const {
     if (asr_provider == AsrProvider::kVolcengine) return kVolcengineUrl;
+    if (asr_provider == AsrProvider::kAliyun) {
+        auto url = Trim(aliyun_asr_url);
+        return url.empty() ? AppConfig{}.aliyun_asr_url : url;
+    }
     auto url = Trim(voicestick_cloud_url);
     return url.empty() ? AppConfig{}.voicestick_cloud_url : url;
+}
+
+std::string AppConfig::EffectiveLlmApiKey() const {
+    auto key = Trim(llm_api_key);
+    return key.empty() ? EffectiveAliyunApiKey(aliyun_api_key) : key;
+}
+
+ApiKeySource AppConfig::AliyunApiKeySource() const {
+    return AliyunApiKeySourceFor(aliyun_api_key);
+}
+
+ApiKeySource AppConfig::LlmApiKeySource() const {
+    if (!Trim(llm_api_key).empty()) return ApiKeySource::kConfigured;
+    return AliyunApiKeySourceFor(aliyun_api_key);
 }
 
 void AppConfig::SavePairedDevice(const PairedDeviceEntry& entry) {
@@ -494,11 +572,21 @@ OutputProfile AppConfig::OutputProfileForDevice(const std::optional<std::string>
 }
 
 std::string AsrProviderName(AsrProvider provider) {
-    return provider == AsrProvider::kVoiceStickCloud ? "voicestick_cloud" : "volcengine";
+    switch (provider) {
+    case AsrProvider::kVoiceStickCloud:
+        return "voicestick_cloud";
+    case AsrProvider::kVolcengine:
+        return "volcengine";
+    case AsrProvider::kAliyun:
+        return "aliyun";
+    }
+    return "aliyun";
 }
 
 AsrProvider AsrProviderFromName(std::string_view name) {
-    return name == "voicestick_cloud" ? AsrProvider::kVoiceStickCloud : AsrProvider::kVolcengine;
+    if (name == "voicestick_cloud") return AsrProvider::kVoiceStickCloud;
+    if (name == "volcengine") return AsrProvider::kVolcengine;
+    return AsrProvider::kAliyun;
 }
 
 std::string InteractionModeName(InteractionMode mode) {
@@ -533,14 +621,14 @@ OverlayThemeColor OverlayThemeColorFromName(std::string_view name) {
 
 std::string OverlayThemeColorDisplayName(OverlayThemeColor color) {
     switch (color) {
-    case OverlayThemeColor::kPink: return "Pink";
-    case OverlayThemeColor::kGreen: return "Green";
-    case OverlayThemeColor::kYellow: return "Yellow";
-    case OverlayThemeColor::kBlue: return "Blue";
-    case OverlayThemeColor::kPurple: return "Purple";
+    case OverlayThemeColor::kPink: return "粉色";
+    case OverlayThemeColor::kGreen: return "绿色";
+    case OverlayThemeColor::kYellow: return "黄色";
+    case OverlayThemeColor::kBlue: return "蓝色";
+    case OverlayThemeColor::kPurple: return "紫色";
     case OverlayThemeColor::kWhite:
     default:
-        return "White";
+        return "白色";
     }
 }
 
@@ -566,13 +654,13 @@ OverlayPosition OverlayPositionFromName(std::string_view name) {
 
 std::string OverlayPositionDisplayName(OverlayPosition position) {
     switch (position) {
-    case OverlayPosition::kTopLeft: return "Top Left";
-    case OverlayPosition::kTopRight: return "Top Right";
-    case OverlayPosition::kBottomLeft: return "Bottom Left";
-    case OverlayPosition::kBottomRight: return "Bottom Right";
+    case OverlayPosition::kTopLeft: return "左上";
+    case OverlayPosition::kTopRight: return "右上";
+    case OverlayPosition::kBottomLeft: return "左下";
+    case OverlayPosition::kBottomRight: return "右下";
     case OverlayPosition::kCenter:
     default:
-        return "Center";
+        return "居中";
     }
 }
 
@@ -585,7 +673,7 @@ OutputTarget OutputTargetFromName(std::string_view name) {
 }
 
 std::string OutputTargetDisplayName(OutputTarget target) {
-    return target == OutputTarget::kSubtitle ? "Subtitle" : "Focused App";
+    return target == OutputTarget::kSubtitle ? "字幕" : "当前应用";
 }
 
 std::string TextTransformName(TextTransform transform) {
@@ -597,7 +685,7 @@ TextTransform TextTransformFromName(std::string_view name) {
 }
 
 std::string TextTransformDisplayName(TextTransform transform) {
-    return transform == TextTransform::kTranslate ? "Translate" : "Original";
+    return transform == TextTransform::kTranslate ? "翻译" : "原文";
 }
 
 std::vector<std::string> ParseDeviceIdList(std::string_view text) {

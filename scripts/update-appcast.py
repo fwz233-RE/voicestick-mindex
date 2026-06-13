@@ -73,7 +73,7 @@ def main() -> None:
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>VoiceStick</title>
-    <link>https://78.github.io/voicestick/appcast.xml</link>
+    <link>https://fwz233-re.github.io/voicestick-mindex/appcast.xml</link>
     <description>VoiceStick app updates</description>
     <language>zh-CN</language>
 {windows_item}    <item>

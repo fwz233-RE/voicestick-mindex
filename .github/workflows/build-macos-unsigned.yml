@@ -1,0 +1,117 @@
+name: Build Unsigned macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to upload assets to, for example v0.3.4. Must match VERSION."
+        required: true
+        default: "v0.3.4"
+      upload_release:
+        description: "Upload macOS assets to the GitHub Release"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macos-unsigned-${{ github.ref }}-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  build-macos-unsigned:
+    name: Build unsigned macOS app
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          release_tag="${{ inputs.release_tag }}"
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "v${version}" != "${release_tag}" ]; then
+            echo "::error ::release tag ${release_tag} does not match VERSION (${version})."
+            exit 1
+          fi
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate private embedded API key source
+        env:
+          ALIYUN_API_KEY: ${{ secrets.ALIYUN_API_KEY }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          key = (os.environ.get("ALIYUN_API_KEY") or os.environ.get("DASHSCOPE_API_KEY") or "").strip()
+          if not key:
+              raise SystemExit("Missing ALIYUN_API_KEY or DASHSCOPE_API_KEY repository secret")
+
+          mask = 0x5A
+          encoded = [ord(ch) ^ mask for ch in key]
+          lines = [
+              "import Foundation",
+              "",
+              "enum PrivateEmbeddedAPIKey {",
+              "    static func aliyunAPIKey() -> String {",
+              f"        let mask: UInt8 = 0x{mask:02X}",
+              "        let data: [UInt8] = [",
+              "            " + ", ".join(f"0x{byte:02X}" for byte in encoded),
+              "        ]",
+              "        return String(bytes: data.map { $0 ^ mask }, encoding: .utf8) ?? \"\"",
+              "    }",
+              "}",
+              "",
+          ]
+          output = Path("desktop/macos/Sources/VoiceStickApp/Private/EmbeddedAPIKey.swift")
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text("\n".join(lines), encoding="utf-8")
+          PY
+
+      - name: Build app and ZIP
+        run: scripts/build-macos.sh --release
+
+      - name: Build unsigned DMG
+        run: scripts/make-dmg.sh
+
+      - name: Stage artifacts
+        run: |
+          set -euo pipefail
+          version="${{ steps.ver.outputs.version }}"
+          mkdir -p dist
+          cp "build/VoiceStick-${version}.dmg" dist/
+          cp "build/VoiceStick-${version}.zip" dist/
+          ( cd dist && shasum -a 256 "VoiceStick-${version}.dmg" > "VoiceStick-${version}.dmg.sha256" )
+          ( cd dist && shasum -a 256 "VoiceStick-${version}.zip" > "VoiceStick-${version}.zip.sha256" )
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voicestick-macos-unsigned-${{ steps.ver.outputs.version }}
+          path: dist/*
+
+      - name: Upload macOS assets to Release
+        if: ${{ inputs.upload_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          release_tag="${{ steps.ver.outputs.release_tag }}"
+          version="${{ steps.ver.outputs.version }}"
+          if ! gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release create "$release_tag" --target "$GITHUB_SHA" --title "VoiceStick ${version}" --notes ""
+          fi
+          gh release upload "$release_tag" \
+            "dist/VoiceStick-${version}.dmg" \
+            "dist/VoiceStick-${version}.dmg.sha256" \
+            "dist/VoiceStick-${version}.zip" \
+            "dist/VoiceStick-${version}.zip.sha256" \
+            --clobber

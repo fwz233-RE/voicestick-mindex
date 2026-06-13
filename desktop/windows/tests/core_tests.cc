@@ -381,7 +381,7 @@ void TestAsrProtocol() {
 
 void TestAppConfig() {
     AppConfig cloud = AppConfig::Defaults();
-    assert(cloud.asr_provider == AsrProvider::kVoiceStickCloud);
+    assert(cloud.asr_provider == AsrProvider::kAliyun);
     cloud.asr_provider = AsrProvider::kVoiceStickCloud;
     cloud.voicestick_cloud_url = "";
     assert(cloud.ActiveWebsocketUrl() == "wss://api.xiaozhi.me/voicestick/asr/");
@@ -407,10 +407,10 @@ void TestAppConfig() {
     assert(cache.paired_devices.front().firmware_version == "0.1.2");
     assert(OverlayThemeColorFromName("pink") == OverlayThemeColor::kPink);
     assert(OverlayThemeColorName(OverlayThemeColor::kGreen) == "green");
-    assert(OverlayThemeColorDisplayName(OverlayThemeColor::kYellow) == "Yellow");
+    assert(OverlayThemeColorDisplayName(OverlayThemeColor::kYellow) == "黄色");
     assert(OverlayPositionFromName("top_right") == OverlayPosition::kTopRight);
     assert(OverlayPositionName(OverlayPosition::kBottomLeft) == "bottom_left");
-    assert(OverlayPositionDisplayName(OverlayPosition::kCenter) == "Center");
+    assert(OverlayPositionDisplayName(OverlayPosition::kCenter) == "居中");
     cache.default_output_profile.target = OutputTarget::kSubtitle;
     cache.default_output_profile.transform = TextTransform::kOriginal;
     cache.device_output_profiles["5A74"] = OutputProfile{

@@ -61,7 +61,7 @@ std::string LLMTranslationClient::TranslateSync(const std::string& text,
                                                 const std::string& target_language,
                                                 const std::vector<std::string>& hotwords,
                                                 std::string* error) const {
-    const auto api_key = Trim(config_.llm_api_key);
+    const auto api_key = Trim(config_.EffectiveLlmApiKey());
     if (api_key.empty()) {
         *error = "Missing LLM API key";
         return {};

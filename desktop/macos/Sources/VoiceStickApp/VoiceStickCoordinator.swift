@@ -182,7 +182,7 @@ final class VoiceStickCoordinator {
                 self.statusController.setStatus("Ready")
                 self.ble.sendInteractionMode(self.config.interactionMode)
             } else {
-                self.statusController.setStatus(self.pairedDeviceIDs.isEmpty ? "Pair a VoiceStick" : "Ready")
+                self.statusController.setStatus(self.pairedDeviceIDs.isEmpty ? "需要配对 VoiceStick" : "就绪")
             }
         }
 
@@ -337,7 +337,7 @@ final class VoiceStickCoordinator {
         pairedDeviceIDs = deviceIDs
         statusController.setPairedDeviceIDs(deviceIDs)
         statusController.setConnectedDevices([])
-        statusController.setStatus(deviceIDs.isEmpty ? "Pair a VoiceStick" : "Ready")
+        statusController.setStatus(deviceIDs.isEmpty ? "需要配对 VoiceStick" : "就绪")
         ble.updatePairedDeviceIDs(deviceIDs)
     }
 
@@ -1174,7 +1174,7 @@ final class VoiceStickCoordinator {
             alert.messageText = "VoiceStick Cloud needs attention"
             alert.informativeText = message
             alert.addButton(withTitle: "Open")
-            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: "取消")
             if alert.runModal() == .alertFirstButtonReturn {
                 NSWorkspace.shared.open(url)
             }
@@ -1189,7 +1189,7 @@ final class VoiceStickCoordinator {
             statusController.hideOverlay()
         }
         if pairedDeviceIDs.isEmpty {
-            statusController.setStatus("Pair a VoiceStick")
+            statusController.setStatus("需要配对 VoiceStick")
         } else {
             statusController.setStatus("Ready")
             sendUIStateForActiveDevice("ready")

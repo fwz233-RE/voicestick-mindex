@@ -85,8 +85,8 @@ void FirmwareUpdateDialog::UpdateProgress(const FirmwareUpdateProgress& progress
     displayed_percent_ = percent;
     SendMessageW(progress_bar_, PBM_SETPOS, percent, 0);
     SetText(percent_label_, std::to_wstring(percent) + L"%");
-    SetText(detail_label_, percent >= 100 ? L"Finalizing firmware update..."
-                                          : L"Transferring firmware over BLE...");
+    SetText(detail_label_, percent >= 100 ? L"正在完成固件更新..."
+                                          : L"正在通过 BLE 传输固件...");
 }
 
 void FirmwareUpdateDialog::Finish(bool success, const std::string& message) {
@@ -95,13 +95,13 @@ void FirmwareUpdateDialog::Finish(bool success, const std::string& message) {
     EnableWindow(close_button_, TRUE);
     if (success) {
         displayed_percent_ = 100;
-        SetText(title_label_, L"Firmware Updated");
-        SetText(detail_label_, L"The device is rebooting into the new firmware.");
+        SetText(title_label_, L"固件已更新");
+        SetText(detail_label_, L"设备正在重启并进入新固件。");
         SendMessageW(progress_bar_, PBM_SETPOS, 100, 0);
         SetText(percent_label_, L"100%");
     } else {
-        SetText(title_label_, L"Update Failed");
-        SetText(detail_label_, Utf16(message.empty() ? "Firmware update failed." : message));
+        SetText(title_label_, L"更新失败");
+        SetText(detail_label_, Utf16(message.empty() ? "固件更新失败。" : message));
     }
 }
 
@@ -124,8 +124,8 @@ INT_PTR FirmwareUpdateDialog::HandleMessage(UINT message, WPARAM w_param, LPARAM
     case WM_COMMAND:
         if (LOWORD(w_param) == kCancelId) {
             EnableWindow(cancel_button_, FALSE);
-            SetText(title_label_, L"Cancelling Firmware Update");
-            SetText(detail_label_, L"Stopping transfer and asking the device to abort.");
+            SetText(title_label_, L"正在取消固件更新");
+            SetText(detail_label_, L"正在停止传输，并请求设备中止更新。");
             if (on_cancel) on_cancel();
             return TRUE;
         }
@@ -176,7 +176,7 @@ LPCDLGTEMPLATE FirmwareUpdateDialog::BuildDialogTemplate() {
     AppendDialogData(&dialog_template_, &dialog, sizeof(dialog));
     AppendDialogWord(&dialog_template_, 0);
     AppendDialogWord(&dialog_template_, 0);
-    AppendDialogWideString(&dialog_template_, L"Firmware Update");
+    AppendDialogWideString(&dialog_template_, L"固件更新");
     AppendDialogWord(&dialog_template_, 9);
     AppendDialogWideString(&dialog_template_, L"Segoe UI");
     return reinterpret_cast<LPCDLGTEMPLATE>(dialog_template_.data());
@@ -202,10 +202,10 @@ void FirmwareUpdateDialog::BuildUi() {
         return control;
     };
 
-    title_label_ = remember(CreateWindowExW(0, L"STATIC", L"Updating Firmware",
+    title_label_ = remember(CreateWindowExW(0, L"STATIC", L"正在更新固件",
                                             WS_CHILD | WS_VISIBLE, Dp(24), Dp(20), Dp(370), Dp(24),
                                             hwnd_, nullptr, instance_, nullptr));
-    const auto detail = L"Downloading OTA firmware " + Utf16(version_) + L"...";
+    const auto detail = L"正在下载 OTA 固件 " + Utf16(version_) + L"...";
     detail_label_ = remember(CreateWindowExW(0, L"STATIC", detail.c_str(),
                                              WS_CHILD | WS_VISIBLE, Dp(24), Dp(52), Dp(380), Dp(36),
                                              hwnd_, nullptr, instance_, nullptr));
@@ -216,12 +216,12 @@ void FirmwareUpdateDialog::BuildUi() {
     percent_label_ = remember(CreateWindowExW(0, L"STATIC", L"0%",
                                               WS_CHILD | WS_VISIBLE | SS_RIGHT, Dp(350), Dp(100), Dp(55), Dp(20),
                                               hwnd_, nullptr, instance_, nullptr));
-    cancel_button_ = remember(CreateWindowExW(0, L"BUTTON", L"Cancel",
+    cancel_button_ = remember(CreateWindowExW(0, L"BUTTON", L"取消",
                                               WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                                               Dp(235), Dp(145), Dp(80), Dp(28),
                                               hwnd_, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCancelId)),
                                               instance_, nullptr));
-    close_button_ = remember(CreateWindowExW(0, L"BUTTON", L"Close",
+    close_button_ = remember(CreateWindowExW(0, L"BUTTON", L"关闭",
                                              WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                                              Dp(325), Dp(145), Dp(80), Dp(28),
                                              hwnd_, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCloseId)),

@@ -53,7 +53,7 @@ std::string FormatHresult(std::int32_t code) {
 }
 
 std::wstring ScanStartFailureText(const winrt::hresult_error& error) {
-    std::string message = "Turn on Bluetooth to scan (" + FormatHresult(error.code()) + ")";
+    std::string message = "请开启蓝牙后再扫描 (" + FormatHresult(error.code()) + ")";
     const auto detail = winrt::to_string(error.message());
     if (!detail.empty()) message += ": " + detail;
     auto text = winrt::to_hstring(message);
@@ -305,7 +305,7 @@ LPCDLGTEMPLATE PairDeviceDialog::BuildDialogTemplate() {
     AppendDialogData(&dialog_template_, &dialog_template, sizeof(dialog_template));
     AppendDialogWord(&dialog_template_, 0);
     AppendDialogWord(&dialog_template_, 0);
-    AppendDialogWideString(&dialog_template_, L"Pair VoiceStick");
+    AppendDialogWideString(&dialog_template_, L"配对 VoiceStick");
     AppendDialogWord(&dialog_template_, 9);
     AppendDialogWideString(&dialog_template_, L"Segoe UI");
     return reinterpret_cast<LPCDLGTEMPLATE>(dialog_template_.data());
@@ -368,17 +368,17 @@ void PairDeviceDialog::BuildContent() {
     const int scrollbar_width = GetSystemMetricsForDpi(SM_CXVSCROLL, dpi_);
     const int list_width = client_width - 2 * margin - scrollbar_width - Dp(6);
     InsertColumn(device_list_, 0, L"VoiceStick", Dp(150));
-    InsertColumn(device_list_, 1, L"Signal", Dp(86));
-    InsertColumn(device_list_, 2, L"Bluetooth Address",
+    InsertColumn(device_list_, 1, L"信号", Dp(86));
+    InsertColumn(device_list_, 2, L"蓝牙地址",
                  list_width - Dp(150) - Dp(86));
 
-    status_label_ = CreateWindowExW(0, L"STATIC", L"Scanning", WS_CHILD | WS_VISIBLE,
+    status_label_ = CreateWindowExW(0, L"STATIC", L"扫描中", WS_CHILD | WS_VISIBLE,
                                     margin, button_y + Dp(5), pair_x - margin - button_gap,
                                     Dp(22), hwnd_, nullptr, instance_, nullptr);
-    pair_button_ = CreateWindowExW(0, L"BUTTON", L"Pair", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
+    pair_button_ = CreateWindowExW(0, L"BUTTON", L"配对", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
                                    pair_x, button_y, button_width, button_height, hwnd_,
                                    ControlId(IDOK), instance_, nullptr);
-    cancel_button_ = CreateWindowExW(0, L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+    cancel_button_ = CreateWindowExW(0, L"BUTTON", L"取消", WS_CHILD | WS_VISIBLE | WS_TABSTOP,
                                      cancel_x, button_y, button_width, button_height, hwnd_,
                                      ControlId(IDCANCEL), instance_, nullptr);
     for (HWND control : {device_list_, status_label_, pair_button_, cancel_button_}) {
@@ -393,7 +393,7 @@ void PairDeviceDialog::StartScan() {
         devices_.clear();
     }
     RebuildList();
-    SetWindowTextW(status_label_, L"Scanning");
+    SetWindowTextW(status_label_, L"扫描中");
     watcher_ = winrt::Windows::Devices::Bluetooth::Advertisement::BluetoothLEAdvertisementWatcher();
     watcher_.ScanningMode(
         winrt::Windows::Devices::Bluetooth::Advertisement::BluetoothLEScanningMode::Active);
@@ -417,7 +417,7 @@ void PairDeviceDialog::StartScan() {
         } catch (...) {
         }
         watcher_ = nullptr;
-        SetWindowTextW(status_label_, L"Bluetooth scan failed.");
+        SetWindowTextW(status_label_, L"蓝牙扫描失败。");
         EnableWindow(pair_button_, FALSE);
     }
 }
@@ -481,7 +481,7 @@ void PairDeviceDialog::RebuildList() {
     for (std::size_t index = 0; index < devices.size(); ++index) {
         const auto& device = devices[index];
         std::string title = "VS-" + device.device_id;
-        if (IsExistingDevice(device.device_id)) title += " (paired)";
+        if (IsExistingDevice(device.device_id)) title += "（已配对）";
         auto name = Utf16(title);
         LVITEMW item{};
         item.mask = LVIF_TEXT;
@@ -506,7 +506,7 @@ void PairDeviceDialog::RebuildList() {
         SendMessageW(device_list_, LVM_ENSUREVISIBLE, static_cast<WPARAM>(selection), FALSE);
     }
 
-    const auto status = devices.empty() ? L"Scanning" : Utf16(std::to_string(devices.size()) + " found");
+    const auto status = devices.empty() ? L"扫描中" : Utf16("发现 " + std::to_string(devices.size()) + " 个设备");
     SetWindowTextW(status_label_, status.c_str());
 }
 
@@ -521,7 +521,7 @@ void PairDeviceDialog::PairSelectedDevice() {
         devices = devices_;
     }
     if (selected < 0 || selected >= static_cast<int>(devices.size())) {
-        SetWindowTextW(status_label_, L"Select a device");
+        SetWindowTextW(status_label_, L"请选择设备");
         return;
     }
     BeginPairing(devices[static_cast<std::size_t>(selected)]);
@@ -537,8 +537,8 @@ void PairDeviceDialog::BeginPairing(const PairingDevice& device) {
     StopScan();
     EnableWindow(device_list_, FALSE);
     EnableWindow(pair_button_, FALSE);
-    SetWindowTextW(pair_button_, L"Pairing...");
-    auto status = Utf16("Pairing VS-" + device.device_id + "...");
+    SetWindowTextW(pair_button_, L"配对中...");
+    auto status = Utf16("正在配对 VS-" + device.device_id + "...");
     SetWindowTextW(status_label_, status.c_str());
     SetTimer(hwnd_, kPairingTimeoutTimerId, 30000, nullptr);
     if (on_pair_) {
@@ -548,7 +548,7 @@ void PairDeviceDialog::BeginPairing(const PairingDevice& device) {
 
 void PairDeviceDialog::HandlePairingConnected() {
     if (!pairing_device_id_.has_value() || pairing_finalized_) return;
-    auto status = Utf16("Connected to VS-" + *pairing_device_id_ + ". Finishing up...");
+    auto status = Utf16("已连接到 VS-" + *pairing_device_id_ + "。正在完成...");
     SetWindowTextW(status_label_, status.c_str());
     // Give the device a brief window to push device_info via state notification,
     // but treat the BLE link being up as success even if device_info never
@@ -575,8 +575,8 @@ void PairDeviceDialog::FinalizePairing(std::optional<DeviceInfo> info) {
     KillTimer(hwnd_, kPairingFinalizeTimerId);
     const auto device_id = *pairing_device_id_;
     auto status = info && !info->firmware_version.empty()
-                      ? Utf16("Paired VS-" + device_id + " firmware " + info->firmware_version)
-                      : Utf16("Paired VS-" + device_id);
+                      ? Utf16("已配对 VS-" + device_id + "，固件 " + info->firmware_version)
+                      : Utf16("已配对 VS-" + device_id);
     SetWindowTextW(status_label_, status.c_str());
     if (on_pair_completed_) on_pair_completed_(device_id, std::move(info));
     Close();
@@ -589,7 +589,7 @@ void PairDeviceDialog::HandlePairingError(const std::string& message) {
     pairing_finalized_ = false;
     EnableWindow(device_list_, TRUE);
     EnableWindow(pair_button_, TRUE);
-    SetWindowTextW(pair_button_, L"Retry");
+    SetWindowTextW(pair_button_, L"重试");
     SetWindowTextW(status_label_, Utf16(message).c_str());
     StartScan();
 }
@@ -602,8 +602,8 @@ void PairDeviceDialog::HandlePairingTimeout() {
     pairing_finalized_ = false;
     EnableWindow(device_list_, TRUE);
     EnableWindow(pair_button_, TRUE);
-    SetWindowTextW(pair_button_, L"Pair");
-    SetWindowTextW(status_label_, L"Pairing timed out");
+    SetWindowTextW(pair_button_, L"配对");
+    SetWindowTextW(status_label_, L"配对超时");
     if (on_pair_timeout && timed_out_device) on_pair_timeout(*timed_out_device);
     StartScan();
 }

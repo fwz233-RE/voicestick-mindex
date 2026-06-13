@@ -16,7 +16,12 @@ echo Building VoiceStick v%VERSION% MSI installer...
 
 :: Initialize VS build environment (cmake, ninja, cl, rc, etc.)
 set VSWHERE="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
-for /f "delims=" %%i in ('%VSWHERE% -latest -property installationPath') do set VS_PATH=%%i
+for /f "delims=" %%i in ('%VSWHERE% -latest -prerelease -property installationPath') do set VS_PATH=%%i
+if not exist "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" (
+    if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
+        set "VS_PATH=%ProgramFiles(x86)%\Microsoft Visual Studio\18\BuildTools"
+    )
+)
 if not exist "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" (
     echo ERROR: Could not find vcvarsall.bat. Is Visual Studio installed?
     exit /b 1

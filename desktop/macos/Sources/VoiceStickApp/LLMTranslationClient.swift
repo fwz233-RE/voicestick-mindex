@@ -32,7 +32,7 @@ final class LLMTranslationClient {
         hotwords: [String],
         completion: @escaping (Result<String, Error>) -> Void
     ) {
-        let apiKey = config.llmAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = config.effectiveLLMAPIKey
         guard !apiKey.isEmpty else {
             completion(.failure(TranslationError.missingAPIKey))
             return

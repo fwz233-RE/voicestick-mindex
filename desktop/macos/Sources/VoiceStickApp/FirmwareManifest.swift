@@ -92,11 +92,11 @@ final class FirmwareManifestClient {
         var errorDescription: String? {
             switch self {
             case .invalidResponse:
-                return "Firmware update server returned an invalid response."
+                return "固件更新服务器返回了无效响应。"
             case .checksumMismatch:
-                return "Firmware checksum did not match the manifest."
+                return "固件校验和与清单不一致。"
             case .sizeMismatch:
-                return "Firmware size did not match the manifest."
+                return "固件大小与清单不一致。"
             }
         }
     }

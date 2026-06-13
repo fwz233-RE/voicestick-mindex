@@ -5,13 +5,13 @@
 建议的 GitHub Pages 地址：
 
 ```text
-https://78.github.io/voicestick/
+https://fwz233-re.github.io/voicestick-mindex/
 ```
 
 macOS 和 Windows 应用会检查根路径下生成的 appcast：
 
 ```text
-https://78.github.io/voicestick/appcast.xml
+https://fwz233-re.github.io/voicestick-mindex/appcast.xml
 ```
 
 ## 发布流程

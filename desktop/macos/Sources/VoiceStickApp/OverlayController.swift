@@ -109,13 +109,13 @@ final class OverlayController {
     }
 
     func showListening(text: String) {
-        show(mode: .listening, text: text.isEmpty ? "Listening..." : text, hint: "", autoHideAfter: nil)
+        show(mode: .listening, text: text.isEmpty ? "正在聆听..." : text, hint: "", autoHideAfter: nil)
     }
 
     func showFinal(text: String, onHidden: (() -> Void)? = nil) {
         show(
             mode: .countdown(duration: 1.2),
-            text: text.isEmpty ? "No speech" : text,
+            text: text.isEmpty ? "没有识别到语音" : text,
             hint: "",
             autoHideAfter: 1.2,
             onHidden: onHidden
@@ -125,8 +125,8 @@ final class OverlayController {
     func showPaused(text: String) {
         show(
             mode: .paused,
-            text: text.isEmpty ? "No speech" : text,
-            hint: "Front: Send    Side: Cancel",
+            text: text.isEmpty ? "没有识别到语音" : text,
+            hint: "正面键：发送    侧键：取消",
             autoHideAfter: nil
         )
     }
@@ -134,8 +134,8 @@ final class OverlayController {
     func showError(_ text: String, onHidden: (() -> Void)? = nil) {
         show(
             mode: .error,
-            text: text.isEmpty ? "Unknown ASR error" : text,
-            hint: "ASR Error",
+            text: text.isEmpty ? "未知 ASR 错误" : text,
+            hint: "ASR 错误",
             autoHideAfter: 2,
             onHidden: onHidden
         )

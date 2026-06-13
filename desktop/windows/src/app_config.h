@@ -13,6 +13,7 @@ namespace voicestick {
 enum class AsrProvider {
     kVoiceStickCloud,
     kVolcengine,
+    kAliyun,
 };
 
 enum class InteractionMode {
@@ -47,6 +48,13 @@ enum class TextTransform {
     kTranslate,
 };
 
+enum class ApiKeySource {
+    kMissing,
+    kConfigured,
+    kEnvironment,
+    kEmbedded,
+};
+
 enum class BluetoothAddressKind : std::uint8_t {
     kUnspecified = 0,
     kPublic = 1,
@@ -73,13 +81,16 @@ struct OutputProfile {
 struct AppConfig {
     static constexpr std::string_view minimum_compatible_firmware_version = "0.3.0";
 
-    AsrProvider asr_provider = AsrProvider::kVoiceStickCloud;
+    AsrProvider asr_provider = AsrProvider::kAliyun;
     std::string voicestick_api_key;
     std::string voicestick_cloud_url = "wss://api.xiaozhi.me/voicestick/asr/";
     std::string volcengine_api_key;
-    std::string llm_base_url = "https://api.openai.com/v1";
+    std::string aliyun_api_key;
+    std::string aliyun_asr_url = "wss://dashscope.aliyuncs.com/api-ws/v1/inference/";
+    std::string aliyun_asr_model = "fun-asr-realtime";
+    std::string llm_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1";
     std::string llm_api_key;
-    std::string llm_model = "gpt-5.5";
+    std::string llm_model = "qwen3.6-flash";
     InteractionMode interaction_mode = InteractionMode::kHoldToTalk;
     std::string resource_id = "volc.seedasr.sauc.duration";
     std::vector<std::string> asr_hotwords;
@@ -108,6 +119,9 @@ struct AppConfig {
     void RemovePairedDevice(const std::string& device_id);
     std::string ActiveApiKey() const;
     std::string ActiveWebsocketUrl() const;
+    std::string EffectiveLlmApiKey() const;
+    ApiKeySource AliyunApiKeySource() const;
+    ApiKeySource LlmApiKeySource() const;
     OutputProfile OutputProfileForDevice(const std::optional<std::string>& device_id) const;
 };
 

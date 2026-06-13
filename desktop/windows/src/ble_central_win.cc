@@ -134,10 +134,10 @@ bool CanReadAdvertisementAddressType() {
 }
 
 std::string ScanStartFailureMessage(const winrt::hresult_error& error) {
-    std::string message = "Bluetooth LE scan failed (HRESULT=" + FormatHresult(error.code()) + ")";
+    std::string message = "Bluetooth LE 扫描失败 (HRESULT=" + FormatHresult(error.code()) + ")";
     const auto detail = winrt::to_string(error.message());
     if (!detail.empty()) message += ": " + detail;
-    message += ". Turn on Bluetooth in Windows Settings, then restart VoiceStick or update paired devices.";
+    message += "。请在 Windows 设置中开启蓝牙，然后重启 VoiceStick 或更新已配对设备。";
     return message;
 }
 
@@ -338,21 +338,21 @@ void BleCentralWin::UpdateFirmware(ByteVector image,
     {
         std::lock_guard lock(mutex_);
         if (firmware_update_session_) {
-            completion(false, "A firmware update is already running.");
+            completion(false, "已有固件更新正在运行。");
             return;
         }
         auto it = sessions_by_device_id_.find(device_id);
         if (it == sessions_by_device_id_.end() || !it->second->ready) {
-            completion(false, "No VoiceStick is connected.");
+            completion(false, "没有已连接的 VoiceStick。");
             return;
         }
         session = it->second;
         if (!session->ota_rx_characteristic || !session->ota_state_characteristic) {
-            completion(false, "The connected firmware does not expose BLE OTA.");
+            completion(false, "已连接固件未提供 BLE OTA。");
             return;
         }
         if (image.size() > 3 * 1024 * 1024) {
-            completion(false, "Firmware image is larger than the OTA partition.");
+            completion(false, "固件镜像大于 OTA 分区。");
             return;
         }
         firmware_update_session_ = std::make_shared<FirmwareUpdateSession>();
@@ -387,7 +387,7 @@ void BleCentralWin::CancelFirmwareUpdate() {
                 BufferFromBytes(payload), GattWriteOption::WriteWithoutResponse);
         } catch (...) {}
     }
-    FinishFirmwareUpdate(update_session, false, "Firmware update cancelled.");
+    FinishFirmwareUpdate(update_session, false, "固件更新已取消。");
 }
 
 void BleCentralWin::CancelPendingConnect(const std::string& device_id) {
@@ -1132,7 +1132,7 @@ winrt::fire_and_forget BleCentralWin::UpdateFirmwareAsync(
     std::shared_ptr<FirmwareUpdateSession> update_session) {
     try {
         if (!session || !update_session || !session->ota_rx_characteristic) {
-            FinishFirmwareUpdate(update_session, false, "The connected firmware does not expose BLE OTA.");
+            FinishFirmwareUpdate(update_session, false, "已连接固件未提供 BLE OTA。");
             co_return;
         }
 
@@ -1151,7 +1151,7 @@ winrt::fire_and_forget BleCentralWin::UpdateFirmwareAsync(
             update_session->transfer_id);
         auto status = co_await write_payload(begin, GattWriteOption::WriteWithResponse);
         if (status != GattCommunicationStatus::Success) {
-            FinishFirmwareUpdate(update_session, false, "BLE OTA begin failed: " + GattStatusName(status));
+            FinishFirmwareUpdate(update_session, false, "BLE OTA 开始失败：" + GattStatusName(status));
             co_return;
         }
 
@@ -1214,7 +1214,7 @@ winrt::fire_and_forget BleCentralWin::UpdateFirmwareAsync(
                            std::to_string(update_session->device_confirmed_written.load()) +
                            "/" + std::to_string(update_session->image.size()));
                 FinishFirmwareUpdate(update_session, false,
-                                     "Device stopped confirming OTA progress.");
+                                     "设备已停止确认 OTA 进度。");
                 co_return;
             }
             co_await winrt::resume_after(std::chrono::milliseconds(20));
@@ -1230,14 +1230,14 @@ winrt::fire_and_forget BleCentralWin::UpdateFirmwareAsync(
         if (status != GattCommunicationStatus::Success) {
             LogBleLine("OTA end failed VS-" + update_session->device_id +
                        " status=" + GattStatusName(status));
-            FinishFirmwareUpdate(update_session, false, "BLE OTA end failed: " + GattStatusName(status));
+            FinishFirmwareUpdate(update_session, false, "BLE OTA 结束失败：" + GattStatusName(status));
         }
     } catch (const winrt::hresult_error& error) {
         FinishFirmwareUpdate(update_session, false,
-                             "BLE OTA failed: " + FormatHresult(error.code()) +
+                             "BLE OTA 失败：" + FormatHresult(error.code()) +
                                  ": " + winrt::to_string(error.message()));
     } catch (...) {
-        FinishFirmwareUpdate(update_session, false, "BLE OTA failed.");
+        FinishFirmwareUpdate(update_session, false, "BLE OTA 失败。");
     }
 }
 
@@ -1275,7 +1275,7 @@ void BleCentralWin::HandleFirmwareOtaStateEvent(const std::string& device_id,
         LogBleLine("OTA device error VS-" + device_id +
                    " code=" + (event.code.empty() ? "unknown" : event.code));
         FinishFirmwareUpdate(update_session, false,
-                             "Device rejected OTA: " + (event.code.empty() ? "unknown" : event.code));
+                             "设备拒绝 OTA：" + (event.code.empty() ? "unknown" : event.code));
     }
 }
 
@@ -1315,7 +1315,7 @@ void BleCentralWin::HandleDeviceDisconnected(const std::string& device_id,
         }
     }
     if (update_session) {
-        FinishFirmwareUpdate(update_session, false, "Device disconnected during firmware update.");
+        FinishFirmwareUpdate(update_session, false, "设备在固件更新期间断开连接。");
     }
     if (removed) CloseSession(std::move(removed));
     LogBleLine("device disconnected VS-" + device_id + "; restarting scan for reconnection");

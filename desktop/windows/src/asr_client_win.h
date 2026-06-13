@@ -58,6 +58,10 @@ private:
     void FailReusableSession(const std::string& message);
     void SetLastStartError(std::string message);
     bool SendReusableFrameOrFail(const ByteVector& frame, const std::string& context);
+    bool SendAliyunTextFrameOrFail(const std::string& text, const std::string& context);
+    bool SendAliyunRunTaskFrame(const std::string& task_id);
+    bool SendAliyunFinishTaskFrame(const std::string& task_id);
+    void HandleAliyunResponse(std::span<const std::uint8_t> data);
 
     static bool SendFrame(HINTERNET websocket, const ByteVector& frame);
     static void AddHeader(HINTERNET request, std::string_view name, std::string_view value);

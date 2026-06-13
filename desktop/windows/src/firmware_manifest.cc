@@ -113,7 +113,7 @@ std::string DownloadText(const std::string& url, std::string& error) {
 
     const auto wide_url = Utf16FromUtf8(url);
     if (!WinHttpCrackUrl(wide_url.c_str(), static_cast<DWORD>(wide_url.size()), 0, &parts)) {
-        error = "Firmware manifest URL is invalid.";
+        error = "固件清单 URL 无效。";
         return {};
     }
 
@@ -159,7 +159,7 @@ std::string DownloadText(const std::string& url, std::string& error) {
         WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
                             WINHTTP_HEADER_NAME_BY_INDEX, &status, &status_size, WINHTTP_NO_HEADER_INDEX);
         if (status < 200 || status >= 300) {
-            error = "Firmware update server returned HTTP " + std::to_string(status) + ".";
+            error = "固件更新服务器返回 HTTP " + std::to_string(status) + "。";
         } else {
             for (;;) {
                 DWORD available = 0;
@@ -224,7 +224,7 @@ std::optional<FirmwareManifest> FirmwareManifestClient::FetchManifestSync(std::s
     if (!error.empty()) return std::nullopt;
     auto manifest = ParseFirmwareManifest(body);
     if (!manifest.has_value()) {
-        error = "Firmware update server returned an invalid manifest.";
+        error = "固件更新服务器返回了无效清单。";
         return std::nullopt;
     }
     return manifest;
@@ -235,12 +235,12 @@ std::optional<ByteVector> FirmwareManifestClient::DownloadOtaSync(const Firmware
     auto image = DownloadBytes(manifest.ota_url, error);
     if (!error.empty()) return std::nullopt;
     if (image.size() != manifest.ota_size) {
-        error = "Firmware size did not match the manifest.";
+        error = "固件大小与清单不一致。";
         return std::nullopt;
     }
     auto digest = Sha256Hex(image);
     if (digest.empty() || digest != manifest.ota_sha256) {
-        error = "Firmware checksum did not match the manifest.";
+        error = "固件校验和与清单不一致。";
         return std::nullopt;
     }
     return image;

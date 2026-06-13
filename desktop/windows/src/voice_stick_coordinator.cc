@@ -63,7 +63,7 @@ void VoiceStickCoordinator::Start() {
         ui_->SetConnectedDevices(devices);
         CancelActiveCycleIfDeviceDisconnected();
         RefreshFirmwareAvailability();
-        ui_->SetStatus(paired_device_ids_.empty() ? "Pair a VoiceStick" : "Ready");
+        ui_->SetStatus(paired_device_ids_.empty() ? "需要配对 VoiceStick" : "就绪");
         ble_->SendInteractionMode(config_.interaction_mode, std::nullopt);
     };
     ble_->on_connection_error = [this](std::string device_id, std::string message) {
@@ -73,7 +73,7 @@ void VoiceStickCoordinator::Start() {
     ble_->on_scan_error = [this](std::string message) {
         if (is_shutdown_) return;
         LogCoordinatorLine("BLE scan error: " + message);
-        ui_->SetStatus("Turn on Bluetooth");
+        ui_->SetStatus("请开启蓝牙");
     };
     ble_->on_state_event = [this](std::string device_id, StateEvent event) {
         if (is_shutdown_) return;
@@ -174,7 +174,7 @@ void VoiceStickCoordinator::ConfirmPairedDeviceIds(const std::vector<std::string
     paired_device_ids_ = device_ids;
     config_.paired_device_ids = device_ids;
     ui_->SetPairedDeviceIds(paired_device_ids_);
-    ui_->SetStatus(paired_device_ids_.empty() ? "Pair a VoiceStick" : "Ready");
+    ui_->SetStatus(paired_device_ids_.empty() ? "需要配对 VoiceStick" : "就绪");
     for (const auto& entry : config_.paired_devices) {
         if (std::find(paired_device_ids_.begin(), paired_device_ids_.end(), entry.device_id) == paired_device_ids_.end()) {
             continue;
@@ -205,7 +205,7 @@ void VoiceStickCoordinator::RemovePairedDevice(const std::string& device_id) {
     LogCoordinatorLine("forget paired device VS-" + device_id);
     ui_->SetPairedDeviceIds(paired_device_ids_);
     ble_->UpdatePairedDeviceIds(paired_device_ids_);
-    ui_->SetStatus(paired_device_ids_.empty() ? "Pair a VoiceStick" : "Ready");
+    ui_->SetStatus(paired_device_ids_.empty() ? "需要配对 VoiceStick" : "就绪");
 }
 
 bool VoiceStickCoordinator::RestoreLastInputConfirmation() {
@@ -235,7 +235,7 @@ void VoiceStickCoordinator::UpdateFirmwareFromLatest(
         manifest = latest_firmware_manifest_;
     }
     if (!manifest.has_value()) {
-        completion(false, "Firmware update manifest is not loaded yet.");
+        completion(false, "固件更新清单尚未加载。");
         return;
     }
 
@@ -246,7 +246,7 @@ void VoiceStickCoordinator::UpdateFirmwareFromLatest(
         auto image = client.DownloadOtaSync(manifest, error);
         if (!alive->load()) return;
         if (!image.has_value()) {
-            completion(false, error.empty() ? "Failed to download firmware." : error);
+            completion(false, error.empty() ? "固件下载失败。" : error);
             return;
         }
         ble_->UpdateFirmware(std::move(*image), device_id, std::move(progress), std::move(completion));
@@ -494,7 +494,7 @@ void VoiceStickCoordinator::HandleSubtitlePrimaryButtonDown(std::optional<std::u
         ClearActiveSubtitleSession(device_id, previous->second);
     }
     if (!asr_factory_) {
-        ui_->ShowError("Subtitle ASR is not available", device_id, [this, device_id] {
+        ui_->ShowError("字幕 ASR 不可用", device_id, [this, device_id] {
             ble_->SendUiState("ready", "", device_id);
         });
         return;

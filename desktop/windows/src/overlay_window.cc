@@ -239,11 +239,11 @@ OverlayWindow::~OverlayWindow() {
 }
 
 void OverlayWindow::ShowListening() {
-    Show(Mode::kListening, "Listening...");
+    Show(Mode::kListening, "正在聆听...");
 }
 
 void OverlayWindow::ShowPartial(const std::string& text) {
-    Show(Mode::kListening, text.empty() ? "Processing..." : text);
+    Show(Mode::kListening, text.empty() ? "处理中..." : text);
 }
 
 void OverlayWindow::ShowFinalCountdown(const std::string& text, std::function<void()> on_complete) {
@@ -255,11 +255,11 @@ void OverlayWindow::ShowFinalCountdown(const std::string& text, std::function<vo
 }
 
 void OverlayWindow::ShowPausedFinal(const std::string& text) {
-    Show(Mode::kPaused, text, "Front: Send    Side: Cancel");
+    Show(Mode::kPaused, text, "正面键：发送    侧键：取消");
 }
 
 void OverlayWindow::ShowError(const std::string& text, std::function<void()> on_complete) {
-    Show(Mode::kError, text.empty() ? "ASR Error" : text);
+    Show(Mode::kError, text.empty() ? "ASR 错误" : text);
     pending_callback_ = std::move(on_complete);
     SetTimer(hwnd_, kAutoHideTimerId, 2000, nullptr);
 }

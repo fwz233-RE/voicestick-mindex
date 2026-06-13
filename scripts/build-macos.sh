@@ -7,7 +7,7 @@
 #   build/VoiceStick-<version>.signature  (when Sparkle sign_update is available)
 #
 # Optional environment:
-#   VOICESTICK_APPCAST_URL=https://78.github.io/voicestick/appcast.xml
+#   VOICESTICK_APPCAST_URL=https://fwz233-re.github.io/voicestick-mindex/appcast.xml
 #   SPARKLE_PUBLIC_ED_KEY=<public key from Sparkle generate_keys>
 #   SPARKLE_PRIVATE_ED_KEY=<private key exported by Sparkle generate_keys -x>
 #   SPARKLE_KEY_ACCOUNT=voicestick
@@ -23,6 +23,10 @@ VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 CONFIG="${1:---release}"
 TARGET_ARCHS="arm64 x86_64"
 SPARKLE_KEY_ACCOUNT="${SPARKLE_KEY_ACCOUNT:-voicestick}"
+SWIFT_EXTRA_FLAGS=()
+if [ -f "$DESKTOP_DIR/Sources/VoiceStickApp/Private/EmbeddedAPIKey.swift" ]; then
+    SWIFT_EXTRA_FLAGS+=("-Xswiftc" "-DPRIVATE_EMBEDDED_API_KEY")
+fi
 
 case "$CONFIG" in
     --release)
@@ -72,7 +76,8 @@ for ARCH in $TARGET_ARCHS; do
         --package-path "$DESKTOP_DIR" \
         -c "$SWIFT_CONFIG" \
         --arch "$ARCH" \
-        --scratch-path "$SCRATCH"
+        --scratch-path "$SCRATCH" \
+        "${SWIFT_EXTRA_FLAGS[@]}"
 done
 
 APP_DIR="$BUILD_DIR/VoiceStick-${VERSION}.app"
@@ -91,7 +96,11 @@ lipo -create \
 
 cp "$PLIST" "$APP_DIR/Contents/Info.plist"
 
+ICONSET_PATH="$DESKTOP_DIR/Resources/AppIcon.iconset"
 ICON_PATH="$DESKTOP_DIR/Resources/AppIcon.icns"
+if [ -d "$ICONSET_PATH" ]; then
+    iconutil -c icns "$ICONSET_PATH" -o "$ICON_PATH"
+fi
 if [ -f "$ICON_PATH" ]; then
     cp "$ICON_PATH" "$APP_DIR/Contents/Resources/AppIcon.icns"
 else

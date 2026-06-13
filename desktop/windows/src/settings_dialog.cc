@@ -81,6 +81,20 @@ std::string JoinHotwords(const std::vector<std::string>& hotwords) {
     return text;
 }
 
+std::wstring ApiKeySourceLabel(ApiKeySource source) {
+    switch (source) {
+    case ApiKeySource::kConfigured:
+        return L"使用用户 Key";
+    case ApiKeySource::kEnvironment:
+        return L"使用环境变量 Key";
+    case ApiKeySource::kEmbedded:
+        return L"使用内置 Key";
+    case ApiKeySource::kMissing:
+    default:
+        return L"未配置 Key";
+    }
+}
+
 HWND CreateLabel(HWND parent, const wchar_t* text, int x, int y, int w, int h, HINSTANCE inst) {
     return CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_RIGHT,
                            x, y, w, h, parent, nullptr, inst, nullptr);
@@ -190,12 +204,16 @@ INT_PTR SettingsDialog::HandleMessage(UINT message, WPARAM w_param, LPARAM l_par
         case kIdProviderCombo:
             if (HIWORD(w_param) == CBN_SELCHANGE) {
                 int idx = static_cast<int>(SendMessageW(provider_combo_, CB_GETCURSEL, 0, 0));
-                const auto& key = idx == 0 ? config_.voicestick_api_key : config_.volcengine_api_key;
+                std::string key;
+                if (idx == 0) key = config_.voicestick_api_key;
+                else if (idx == 1) key = config_.volcengine_api_key;
+                else key = config_.aliyun_api_key;
                 SetWindowTextW(api_key_edit_, Utf16(key).c_str());
                 UpdateProviderVisibility();
             }
             return TRUE;
         case kIdApiKeyEdit:
+        case kIdLlmApiKeyEdit:
             if (HIWORD(w_param) == EN_CHANGE) UpdateProviderVisibility();
             return TRUE;
         }
@@ -234,6 +252,8 @@ INT_PTR SettingsDialog::HandleMessage(UINT message, WPARAM w_param, LPARAM l_par
         llm_base_url_edit_ = nullptr;
         llm_api_key_edit_ = nullptr;
         llm_model_edit_ = nullptr;
+        aliyun_key_status_label_ = nullptr;
+        llm_key_status_label_ = nullptr;
         debug_audio_check_ = nullptr;
         debug_dir_edit_ = nullptr;
         resource_label_ = nullptr;
@@ -262,7 +282,7 @@ LPCDLGTEMPLATE SettingsDialog::BuildDialogTemplate() {
     AppendDialogData(&dialog_template_, &dialog_template, sizeof(dialog_template));
     AppendDialogWord(&dialog_template_, 0);
     AppendDialogWord(&dialog_template_, 0);
-    AppendDialogWideString(&dialog_template_, L"VoiceStick Settings");
+    AppendDialogWideString(&dialog_template_, L"VoiceStick 设置");
     AppendDialogWord(&dialog_template_, 9);
     AppendDialogWideString(&dialog_template_, L"Segoe UI");
     return reinterpret_cast<LPCDLGTEMPLATE>(dialog_template_.data());
@@ -324,12 +344,13 @@ void SettingsDialog::BuildControls() {
     const int row_h = Dp(28);
     int y = Dp(20);
 
-    remember_label(CreateLabel(hwnd_, L"Provider:", Dp(10), y + Dp(3), label_w,
+    remember_label(CreateLabel(hwnd_, L"服务商：", Dp(10), y + Dp(3), label_w,
                                Dp(20), instance_));
     provider_combo_ = remember(CreateCombo(hwnd_, ctrl_x, y, ctrl_w, Dp(200),
                                            kIdProviderCombo, instance_));
     SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"VoiceStick Cloud"));
-    SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Volcengine"));
+    SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"火山引擎"));
+    SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"阿里云"));
     y += row_h + Dp(10);
 
     remember_label(CreateLabel(hwnd_, L"API Key:", Dp(10), y + Dp(3), label_w,
@@ -337,11 +358,14 @@ void SettingsDialog::BuildControls() {
     const int apply_btn_w = Dp(102);
     api_key_edit_ = remember(CreateEdit(hwnd_, ctrl_x, y, ctrl_w - apply_btn_w - Dp(8), Dp(24),
                                         kIdApiKeyEdit, instance_, ES_PASSWORD));
-    apply_trial_button_ = remember(CreateButton(hwnd_, L"Apply Trial",
+    apply_trial_button_ = remember(CreateButton(hwnd_, L"申请试用",
                                                 ctrl_x + ctrl_w - apply_btn_w, y,
                                                 apply_btn_w, Dp(24),
                                                 kIdApplyTrialApiKey, instance_));
-    y += row_h + Dp(10);
+    y += row_h;
+    aliyun_key_status_label_ = remember_label(CreateLeftLabel(hwnd_, L"", ctrl_x, y,
+                                                              ctrl_w, Dp(18), instance_));
+    y += Dp(20);
 
     resource_label_ = remember_label(CreateLabel(hwnd_, L"Resource ID:", Dp(10),
                                                  y + Dp(3), label_w, Dp(20), instance_));
@@ -353,12 +377,12 @@ void SettingsDialog::BuildControls() {
     }
     y += row_h + Dp(16);
 
-    remember_label(CreateLabel(hwnd_, L"Hotwords:", Dp(10), y + Dp(3), label_w,
+    remember_label(CreateLabel(hwnd_, L"热词：", Dp(10), y + Dp(3), label_w,
                                Dp(20), instance_));
     hotwords_edit_ = remember(CreateMultilineEdit(hwnd_, ctrl_x, y, ctrl_w, Dp(74),
                                                   kIdHotwordsEdit, instance_));
     y += Dp(80);
-    remember_label(CreateLeftLabel(hwnd_, L"Separate hotwords with commas or new lines.",
+    remember_label(CreateLeftLabel(hwnd_, L"多个热词请用逗号或换行分隔。",
                                    ctrl_x, y, ctrl_w, Dp(16), instance_));
     y += Dp(26);
 
@@ -372,7 +396,10 @@ void SettingsDialog::BuildControls() {
                                Dp(20), instance_));
     llm_api_key_edit_ = remember(CreateEdit(hwnd_, ctrl_x, y, ctrl_w, Dp(24),
                                             kIdLlmApiKeyEdit, instance_, ES_PASSWORD));
-    y += row_h + Dp(10);
+    y += row_h;
+    llm_key_status_label_ = remember_label(CreateLeftLabel(hwnd_, L"", ctrl_x, y,
+                                                           ctrl_w, Dp(18), instance_));
+    y += Dp(20);
 
     remember_label(CreateLabel(hwnd_, L"LLM Model:", Dp(10), y + Dp(3), label_w,
                                Dp(20), instance_));
@@ -380,26 +407,26 @@ void SettingsDialog::BuildControls() {
                                           kIdLlmModelEdit, instance_));
     y += row_h + Dp(16);
 
-    remember_label(CreateLabel(hwnd_, L"Debug:", Dp(10), y + Dp(3), label_w,
+    remember_label(CreateLabel(hwnd_, L"调试：", Dp(10), y + Dp(3), label_w,
                                Dp(20), instance_));
-    debug_audio_check_ = remember(CreateButton(hwnd_, L"Save debug audio files", ctrl_x, y,
+    debug_audio_check_ = remember(CreateButton(hwnd_, L"保存调试音频文件", ctrl_x, y,
                                                ctrl_w, Dp(22), kIdDebugAudio, instance_,
                                                BS_AUTOCHECKBOX));
     y += row_h + Dp(10);
 
-    remember_label(CreateLabel(hwnd_, L"Audio Folder:", Dp(10), y + Dp(3), label_w,
+    remember_label(CreateLabel(hwnd_, L"音频文件夹：", Dp(10), y + Dp(3), label_w,
                                Dp(20), instance_));
     debug_dir_edit_ = remember(CreateEdit(hwnd_, ctrl_x, y, ctrl_w - Dp(80),
                                           Dp(24), kIdDebugDirEdit, instance_, ES_READONLY));
-    remember(CreateButton(hwnd_, L"Browse...", ctrl_x + ctrl_w - Dp(75), y,
+    remember(CreateButton(hwnd_, L"浏览...", ctrl_x + ctrl_w - Dp(75), y,
                           Dp(75), Dp(24), kIdChooseDir, instance_));
     y += row_h + Dp(20);
 
     const int btn_w = Dp(80);
     const int btn_h = Dp(30);
-    remember(CreateButton(hwnd_, L"Save", Dp(kClientWidth - 200), y, btn_w, btn_h,
+    remember(CreateButton(hwnd_, L"保存", Dp(kClientWidth - 200), y, btn_w, btn_h,
                           kIdSave, instance_));
-    remember(CreateButton(hwnd_, L"Cancel", Dp(kClientWidth - 105), y, btn_w, btn_h,
+    remember(CreateButton(hwnd_, L"取消", Dp(kClientWidth - 105), y, btn_w, btn_h,
                           kIdCancel, instance_));
 
     for (HWND control : all_controls_) {
@@ -408,12 +435,15 @@ void SettingsDialog::BuildControls() {
 }
 
 void SettingsDialog::LoadConfigIntoControls() {
-    SendMessageW(provider_combo_, CB_SETCURSEL,
-                 config_.asr_provider == AsrProvider::kVoiceStickCloud ? 0 : 1, 0);
+    int provider_index = 2;
+    if (config_.asr_provider == AsrProvider::kVoiceStickCloud) provider_index = 0;
+    else if (config_.asr_provider == AsrProvider::kVolcengine) provider_index = 1;
+    SendMessageW(provider_combo_, CB_SETCURSEL, provider_index, 0);
 
-    const auto& key = config_.asr_provider == AsrProvider::kVoiceStickCloud
-                          ? config_.voicestick_api_key
-                          : config_.volcengine_api_key;
+    std::string key;
+    if (config_.asr_provider == AsrProvider::kVoiceStickCloud) key = config_.voicestick_api_key;
+    else if (config_.asr_provider == AsrProvider::kVolcengine) key = config_.volcengine_api_key;
+    else key = config_.aliyun_api_key;
     SetWindowTextW(api_key_edit_, Utf16(key).c_str());
 
     auto resource_wide = Utf16(config_.resource_id);
@@ -434,14 +464,17 @@ void SettingsDialog::LoadConfigIntoControls() {
 
 void SettingsDialog::SaveSettings() {
     int provider_idx = static_cast<int>(SendMessageW(provider_combo_, CB_GETCURSEL, 0, 0));
-    AsrProvider new_provider = (provider_idx == 0) ? AsrProvider::kVoiceStickCloud
-                                                   : AsrProvider::kVolcengine;
+    AsrProvider new_provider = AsrProvider::kAliyun;
+    if (provider_idx == 0) new_provider = AsrProvider::kVoiceStickCloud;
+    else if (provider_idx == 1) new_provider = AsrProvider::kVolcengine;
 
     auto api_key = Utf8(GetWindowText(api_key_edit_));
     if (new_provider == AsrProvider::kVoiceStickCloud) {
         config_.voicestick_api_key = api_key;
-    } else {
+    } else if (new_provider == AsrProvider::kVolcengine) {
         config_.volcengine_api_key = api_key;
+    } else {
+        config_.aliyun_api_key = api_key;
     }
     config_.asr_provider = new_provider;
     config_.llm_base_url = Utf8(GetWindowText(llm_base_url_edit_));
@@ -473,15 +506,29 @@ void SettingsDialog::UpdateProviderVisibility() {
     ShowWindow(resource_combo_, is_volcengine ? SW_SHOW : SW_HIDE);
     ShowWindow(resource_label_, is_volcengine ? SW_SHOW : SW_HIDE);
     const bool is_cloud = (idx == 0);
+    const bool is_aliyun = (idx == 2);
     const bool api_key_empty = GetWindowText(api_key_edit_).empty();
     const bool show_trial_button = is_cloud && api_key_empty;
     ShowWindow(apply_trial_button_, show_trial_button ? SW_SHOW : SW_HIDE);
+    ShowWindow(aliyun_key_status_label_, is_aliyun ? SW_SHOW : SW_HIDE);
     if (api_key_edit_) {
         const int ctrl_w = Dp(kClientWidth - 170);
         const int apply_btn_w = Dp(102);
         const int api_key_w = show_trial_button ? ctrl_w - apply_btn_w - Dp(8) : ctrl_w;
         SetWindowPos(api_key_edit_, nullptr, 0, 0, api_key_w, Dp(24),
                      SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+    AppConfig preview = config_;
+    const auto visible_api_key = Utf8(GetWindowText(api_key_edit_));
+    if (idx == 0) preview.voicestick_api_key = visible_api_key;
+    else if (idx == 1) preview.volcengine_api_key = visible_api_key;
+    else preview.aliyun_api_key = visible_api_key;
+    preview.llm_api_key = Utf8(GetWindowText(llm_api_key_edit_));
+    if (aliyun_key_status_label_) {
+        SetWindowTextW(aliyun_key_status_label_, ApiKeySourceLabel(preview.AliyunApiKeySource()).c_str());
+    }
+    if (llm_key_status_label_) {
+        SetWindowTextW(llm_key_status_label_, ApiKeySourceLabel(preview.LlmApiKeySource()).c_str());
     }
 }
 
@@ -490,7 +537,7 @@ void SettingsDialog::ApplyTrialApiKey() {
     if (idx != 0) return;
 
     EnableWindow(apply_trial_button_, FALSE);
-    SetWindowTextW(apply_trial_button_, L"Applying...");
+    SetWindowTextW(apply_trial_button_, L"申请中...");
     UpdateWindow(apply_trial_button_);
 
     const std::string device_id = config_.paired_device_ids.empty()
@@ -498,7 +545,7 @@ void SettingsDialog::ApplyTrialApiKey() {
                                       : config_.paired_device_ids.front();
     auto result = ApplyVoiceStickCloudTrialApiKey(config_.voicestick_cloud_url, device_id);
 
-    SetWindowTextW(apply_trial_button_, L"Apply Trial");
+    SetWindowTextW(apply_trial_button_, L"申请试用");
     EnableWindow(apply_trial_button_, TRUE);
 
     if (!result.api_key.empty()) {
@@ -512,17 +559,17 @@ void SettingsDialog::ApplyTrialApiKey() {
         auto* shell_result = ShellExecuteW(hwnd_, L"open", wide_url.c_str(),
                                            nullptr, nullptr, SW_SHOWNORMAL);
         if (reinterpret_cast<INT_PTR>(shell_result) <= 32) {
-            MessageBoxW(hwnd_, L"Could not open the VoiceStick Cloud signup page.",
-                        L"Could Not Apply Trial API Key", MB_ICONERROR | MB_OK);
+            MessageBoxW(hwnd_, L"无法打开 VoiceStick Cloud 注册页面。",
+                        L"无法申请试用 API Key", MB_ICONERROR | MB_OK);
         }
         UpdateProviderVisibility();
         return;
     }
 
     MessageBoxW(hwnd_, Utf16(result.error.empty()
-                             ? "Could not apply a trial API Key."
+                             ? "无法申请试用 API Key。"
                              : result.error).c_str(),
-                L"Could Not Apply Trial API Key", MB_ICONERROR | MB_OK);
+                L"无法申请试用 API Key", MB_ICONERROR | MB_OK);
     UpdateProviderVisibility();
 }
 

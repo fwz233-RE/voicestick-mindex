@@ -86,13 +86,13 @@ desktop\windows\build-msi-x64\VoiceStick_<version>.msi
 6. Upload the signed MSI to the same GitHub Release:
 
 ```sh
-gh release upload v0.2.4 desktop/windows/build-msi-x64/VoiceStick_0.2.4.msi --repo 78/voicestick
+gh release upload v0.2.4 desktop/windows/build-msi-x64/VoiceStick_0.2.4.msi --repo fwz233-RE/voicestick-mindex
 ```
 
 7. Re-run the website deploy workflow so the appcast includes the Windows MSI:
 
 ```sh
-gh workflow run deploy-website.yml --repo 78/voicestick --ref main
+gh workflow run deploy-website.yml --repo fwz233-RE/voicestick-mindex --ref main
 ```
 
 ## macOS and Firmware First
@@ -111,13 +111,13 @@ scripts\build-msi.bat
 5. Upload the signed MSI to the already published GitHub Release:
 
 ```sh
-gh release upload v0.2.4 desktop/windows/build-msi-x64/VoiceStick_0.2.4.msi --repo 78/voicestick
+gh release upload v0.2.4 desktop/windows/build-msi-x64/VoiceStick_0.2.4.msi --repo fwz233-RE/voicestick-mindex
 ```
 
 6. Re-run the website deploy workflow:
 
 ```sh
-gh workflow run deploy-website.yml --repo 78/voicestick --ref main
+gh workflow run deploy-website.yml --repo fwz233-RE/voicestick-mindex --ref main
 ```
 
 Until the MSI is uploaded and the website deploy has run, Windows clients will not see the new Windows update in the appcast.
@@ -129,15 +129,15 @@ After every release, verify the appcast, firmware manifest, and actual package U
 Stable update endpoints:
 
 ```text
-https://78.github.io/voicestick/appcast.xml
+https://fwz233-re.github.io/voicestick-mindex/appcast.xml
 https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json
 ```
 
 For version `0.2.4`, the appcast should contain:
 
 ```text
-https://github.com/78/voicestick/releases/download/v0.2.4/VoiceStick_0.2.4.msi
-https://github.com/78/voicestick/releases/download/v0.2.4/VoiceStick-0.2.4.zip
+https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick_0.2.4.msi
+https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick-0.2.4.zip
 ```
 
 The firmware manifest should contain:
@@ -150,11 +150,11 @@ https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmware
 Use `HEAD` requests or a browser to confirm every URL returns `200`.
 
 ```powershell
-Invoke-WebRequest -UseBasicParsing https://78.github.io/voicestick/appcast.xml
+Invoke-WebRequest -UseBasicParsing https://fwz233-re.github.io/voicestick-mindex/appcast.xml
 Invoke-WebRequest -UseBasicParsing https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json
 
-Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/78/voicestick/releases/download/v0.2.4/VoiceStick_0.2.4.msi
-Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/78/voicestick/releases/download/v0.2.4/VoiceStick-0.2.4.zip
+Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick_0.2.4.msi
+Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick-0.2.4.zip
 Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-ota-0.2.4.bin
 Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-merged-0.2.4.bin
 ```

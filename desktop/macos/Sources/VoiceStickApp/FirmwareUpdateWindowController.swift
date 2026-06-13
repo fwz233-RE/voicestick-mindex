@@ -1,14 +1,14 @@
 import AppKit
 
 final class FirmwareUpdateWindowController: NSWindowController {
-    private let titleLabel = NSTextField(labelWithString: "Updating Firmware")
-    private let detailLabel = NSTextField(labelWithString: "Preparing update...")
+    private let titleLabel = NSTextField(labelWithString: "正在更新固件")
+    private let detailLabel = NSTextField(labelWithString: "正在准备更新...")
     private let progressIndicator = NSProgressIndicator()
     private let percentLabel = NSTextField(labelWithString: "0%")
-    private let speedLabel = NSTextField(labelWithString: "Speed --")
-    private let timeLabel = NSTextField(labelWithString: "Estimating time remaining")
-    private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
-    private let closeButton = NSButton(title: "Close", target: nil, action: nil)
+    private let speedLabel = NSTextField(labelWithString: "速度 --")
+    private let timeLabel = NSTextField(labelWithString: "正在估算剩余时间")
+    private let cancelButton = NSButton(title: "取消", target: nil, action: nil)
+    private let closeButton = NSButton(title: "关闭", target: nil, action: nil)
     private let startedAt = Date()
     private var confirmedBytes = 0
     var onCancel: (() -> Void)?
@@ -20,7 +20,7 @@ final class FirmwareUpdateWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Firmware Update"
+        window.title = "固件更新"
         window.isReleasedWhenClosed = false
         super.init(window: window)
         buildContent(fileName: fileName)
@@ -56,14 +56,14 @@ final class FirmwareUpdateWindowController: NSWindowController {
 
         let elapsed = max(0.1, Date().timeIntervalSince(startedAt))
         let bytesPerSecond = Double(max(confirmedBytes, displayedBytes)) / elapsed
-        speedLabel.stringValue = "Speed \(Self.format(bytesPerSecond: bytesPerSecond))"
+        speedLabel.stringValue = "速度 \(Self.format(bytesPerSecond: bytesPerSecond))"
 
         if bytesPerSecond > 1 && displayedBytes < progress.totalBytes {
             let remainingBytes = progress.totalBytes - displayedBytes
             let remaining = Double(max(0, remainingBytes)) / bytesPerSecond
-            timeLabel.stringValue = "\(Self.format(duration: remaining)) remaining"
+            timeLabel.stringValue = "剩余 \(Self.format(duration: remaining))"
         } else if displayedBytes >= progress.totalBytes {
-            timeLabel.stringValue = "Finishing on device"
+            timeLabel.stringValue = "正在设备上完成更新"
         }
     }
 
@@ -72,15 +72,15 @@ final class FirmwareUpdateWindowController: NSWindowController {
         closeButton.isEnabled = true
         switch result {
         case .success:
-            titleLabel.stringValue = "Firmware Updated"
-            detailLabel.stringValue = "The device is rebooting into the new firmware."
+            titleLabel.stringValue = "固件已更新"
+            detailLabel.stringValue = "设备正在重启并进入新固件。"
             progressIndicator.doubleValue = 100
             percentLabel.stringValue = "100%"
-            timeLabel.stringValue = "Done"
+            timeLabel.stringValue = "完成"
         case .failure(let error):
-            titleLabel.stringValue = "Update Failed"
+            titleLabel.stringValue = "更新失败"
             detailLabel.stringValue = error.localizedDescription
-            timeLabel.stringValue = "The device kept its current firmware."
+            timeLabel.stringValue = "设备保留当前固件。"
         }
     }
 
@@ -163,9 +163,9 @@ final class FirmwareUpdateWindowController: NSWindowController {
 
     @objc private func cancelUpdate() {
         cancelButton.isEnabled = false
-        titleLabel.stringValue = "Cancelling Firmware Update"
-        detailLabel.stringValue = "Stopping transfer and asking the device to abort."
-        timeLabel.stringValue = "Cancelling"
+        titleLabel.stringValue = "正在取消固件更新"
+        detailLabel.stringValue = "正在停止传输，并请求设备中止更新。"
+        timeLabel.stringValue = "正在取消"
         onCancel?()
     }
 

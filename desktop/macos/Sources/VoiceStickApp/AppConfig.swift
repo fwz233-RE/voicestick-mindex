@@ -5,13 +5,36 @@ import TOMLKit
 enum ASRProvider: String {
     case voiceStickCloud = "voicestick_cloud"
     case volcengine
+    case aliyun
 
     var displayName: String {
         switch self {
         case .voiceStickCloud:
             return "VoiceStick Cloud"
         case .volcengine:
-            return "Volcengine"
+            return "火山引擎"
+        case .aliyun:
+            return "阿里云"
+        }
+    }
+}
+
+enum APIKeySource {
+    case missing
+    case configured
+    case environment
+    case embedded
+
+    var displayName: String {
+        switch self {
+        case .configured:
+            return "使用用户 Key"
+        case .environment:
+            return "使用环境变量 Key"
+        case .embedded:
+            return "使用内置 Key"
+        case .missing:
+            return "未配置 Key"
         }
     }
 }
@@ -23,9 +46,9 @@ enum InteractionMode: String {
     var displayName: String {
         switch self {
         case .holdToTalk:
-            return "Hold to Talk"
+            return "按住说话"
         case .clickToTalk:
-            return "Click to Talk"
+            return "点击说话"
         }
     }
 }
@@ -41,17 +64,17 @@ enum OverlayThemeColor: String, CaseIterable {
     var displayName: String {
         switch self {
         case .white:
-            return "White"
+            return "白色"
         case .pink:
-            return "Pink"
+            return "粉色"
         case .green:
-            return "Green"
+            return "绿色"
         case .yellow:
-            return "Yellow"
+            return "黄色"
         case .blue:
-            return "Blue"
+            return "蓝色"
         case .purple:
-            return "Purple"
+            return "紫色"
         }
     }
 }
@@ -66,15 +89,15 @@ enum OverlayPosition: String, CaseIterable {
     var displayName: String {
         switch self {
         case .center:
-            return "Center"
+            return "居中"
         case .topLeft:
-            return "Top Left"
+            return "左上"
         case .topRight:
-            return "Top Right"
+            return "右上"
         case .bottomLeft:
-            return "Bottom Left"
+            return "左下"
         case .bottomRight:
-            return "Bottom Right"
+            return "右下"
         }
     }
 }
@@ -86,9 +109,9 @@ enum OutputTarget: String, CaseIterable {
     var displayName: String {
         switch self {
         case .focusedApp:
-            return "Focused App"
+            return "当前应用"
         case .subtitle:
-            return "Subtitle"
+            return "字幕"
         }
     }
 }
@@ -100,9 +123,9 @@ enum TextTransform: String, CaseIterable {
     var displayName: String {
         switch self {
         case .original:
-            return "Original"
+            return "原文"
         case .translate:
-            return "Translate"
+            return "翻译"
         }
     }
 }
@@ -128,6 +151,9 @@ struct AppConfig {
     var voiceStickAPIKey: String
     var voiceStickCloudURL: String
     var volcengineAPIKey: String
+    var aliyunAPIKey: String
+    var aliyunASRURL: String
+    var aliyunASRModel: String
     var llmBaseURL: String
     var llmAPIKey: String
     var llmModel: String
@@ -166,7 +192,11 @@ struct AppConfig {
 
     static let defaultVoiceStickCloudURL = "wss://api.xiaozhi.me/voicestick/asr/"
     static let volcengineWebSocketURL = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
-    static let websiteURL = URL(string: "https://78.github.io/voicestick/")!
+    static let defaultAliyunASRURL = "wss://dashscope.aliyuncs.com/api-ws/v1/inference/"
+    static let defaultAliyunASRModel = "fun-asr-realtime"
+    static let defaultAliyunLLMBaseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    static let defaultAliyunLLMModel = "qwen3.6-flash"
+    static let websiteURL = URL(string: "https://fwz233-re.github.io/voicestick-mindex/")!
     static let firmwareManifestURL = URL(
         string: "https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json"
     )!
@@ -178,13 +208,16 @@ struct AppConfig {
 
     static var defaults: AppConfig {
         AppConfig(
-            asrProvider: .voiceStickCloud,
+            asrProvider: .aliyun,
             voiceStickAPIKey: "",
             voiceStickCloudURL: defaultVoiceStickCloudURL,
             volcengineAPIKey: "",
-            llmBaseURL: "https://api.openai.com/v1",
+            aliyunAPIKey: "",
+            aliyunASRURL: defaultAliyunASRURL,
+            aliyunASRModel: defaultAliyunASRModel,
+            llmBaseURL: defaultAliyunLLMBaseURL,
             llmAPIKey: "",
-            llmModel: "gpt-5.5",
+            llmModel: defaultAliyunLLMModel,
             interactionMode: .holdToTalk,
             resourceID: supportedResourceIDs[0],
             asrHotwords: [],
@@ -215,6 +248,9 @@ struct AppConfig {
             voiceStickAPIKey: file.voicestick_api_key ?? defaults.voiceStickAPIKey,
             voiceStickCloudURL: file.voicestick_cloud_url ?? defaults.voiceStickCloudURL,
             volcengineAPIKey: file.volcengine_api_key ?? file.api_key ?? defaults.volcengineAPIKey,
+            aliyunAPIKey: file.aliyun_api_key ?? defaults.aliyunAPIKey,
+            aliyunASRURL: file.aliyun_asr_url ?? defaults.aliyunASRURL,
+            aliyunASRModel: file.aliyun_asr_model ?? defaults.aliyunASRModel,
             llmBaseURL: file.llm_base_url ?? defaults.llmBaseURL,
             llmAPIKey: file.llm_api_key ?? defaults.llmAPIKey,
             llmModel: file.llm_model ?? defaults.llmModel,
@@ -252,6 +288,9 @@ struct AppConfig {
         voicestick_api_key = "\(voiceStickAPIKey.tomlEscaped)"
         voicestick_cloud_url = "\(voiceStickCloudURL.tomlEscaped)"
         volcengine_api_key = "\(volcengineAPIKey.tomlEscaped)"
+        aliyun_api_key = "\(aliyunAPIKey.tomlEscaped)"
+        aliyun_asr_url = "\(aliyunASRURL.tomlEscaped)"
+        aliyun_asr_model = "\(aliyunASRModel.tomlEscaped)"
         llm_base_url = "\(llmBaseURL.tomlEscaped)"
         llm_api_key = "\(llmAPIKey.tomlEscaped)"
         llm_model = "\(llmModel.tomlEscaped)"
@@ -290,6 +329,9 @@ struct AppConfig {
             voiceStickAPIKey: values["voicestick_api_key"] ?? defaults.voiceStickAPIKey,
             voiceStickCloudURL: values["voicestick_cloud_url"] ?? defaults.voiceStickCloudURL,
             volcengineAPIKey: values["volcengine_api_key"] ?? values["api_key"] ?? defaults.volcengineAPIKey,
+            aliyunAPIKey: values["aliyun_api_key"] ?? defaults.aliyunAPIKey,
+            aliyunASRURL: values["aliyun_asr_url"] ?? defaults.aliyunASRURL,
+            aliyunASRModel: values["aliyun_asr_model"] ?? defaults.aliyunASRModel,
             llmBaseURL: values["llm_base_url"] ?? defaults.llmBaseURL,
             llmAPIKey: values["llm_api_key"] ?? defaults.llmAPIKey,
             llmModel: values["llm_model"] ?? defaults.llmModel,
@@ -459,6 +501,53 @@ struct AppConfig {
         )
     }
 
+    var effectiveLLMAPIKey: String {
+        let configured = llmAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        return configured.isEmpty ? effectiveAliyunAPIKey(configuredKey: aliyunAPIKey) : configured
+    }
+
+    var activeASRAPIKey: String {
+        switch asrProvider {
+        case .voiceStickCloud:
+            return voiceStickAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .volcengine:
+            return volcengineAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .aliyun:
+            return effectiveAliyunAPIKey(configuredKey: aliyunAPIKey)
+        }
+    }
+
+    var aliyunAPIKeySource: APIKeySource {
+        Self.aliyunAPIKeySource(configuredKey: aliyunAPIKey)
+    }
+
+    var llmAPIKeySource: APIKeySource {
+        if !llmAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .configured
+        }
+        return Self.aliyunAPIKeySource(configuredKey: aliyunAPIKey)
+    }
+
+    private static func effectiveAliyunAPIKey(configuredKey: String) -> String {
+        let configured = configuredKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !configured.isEmpty { return configured }
+        if !aliyunEnvironmentAPIKey.isEmpty { return aliyunEnvironmentAPIKey }
+        return EmbeddedAPIKey.aliyunAPIKey()
+    }
+
+    private static func aliyunAPIKeySource(configuredKey: String) -> APIKeySource {
+        if !configuredKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .configured }
+        if !aliyunEnvironmentAPIKey.isEmpty { return .environment }
+        if !EmbeddedAPIKey.aliyunAPIKey().isEmpty { return .embedded }
+        return .missing
+    }
+
+    private static var aliyunEnvironmentAPIKey: String {
+        let env = ProcessInfo.processInfo.environment
+        let key = env["DASHSCOPE_API_KEY"] ?? env["ALIYUN_API_KEY"] ?? ""
+        return key.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func deviceOutputProfileMap(
         _ devices: [String: DeviceConfigFile]?,
         defaultProfile: OutputProfile
@@ -515,6 +604,9 @@ private struct ConfigFile: Decodable {
     var voicestick_api_key: String?
     var voicestick_cloud_url: String?
     var volcengine_api_key: String?
+    var aliyun_api_key: String?
+    var aliyun_asr_url: String?
+    var aliyun_asr_model: String?
     var api_key: String?
     var llm_base_url: String?
     var llm_api_key: String?

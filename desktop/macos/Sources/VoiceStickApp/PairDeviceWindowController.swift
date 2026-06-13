@@ -10,7 +10,7 @@ private struct PairingDevice {
 
 final class PairDeviceWindowController: NSWindowController, CBCentralManagerDelegate, NSTableViewDataSource, NSTableViewDelegate {
     private let tableView = NSTableView()
-    private let statusLabel = NSTextField(labelWithString: "Scanning")
+    private let statusLabel = NSTextField(labelWithString: "扫描中")
     private let existingDeviceIDs: Set<String>
     private let onPair: (String) -> Void
     private var central: CBCentralManager?
@@ -26,7 +26,7 @@ final class PairDeviceWindowController: NSWindowController, CBCentralManagerDele
             backing: .buffered,
             defer: false
         )
-        window.title = "Pair VoiceStick"
+        window.title = "配对 VoiceStick"
         window.isReleasedWhenClosed = false
         super.init(window: window)
         buildContent()
@@ -56,7 +56,7 @@ final class PairDeviceWindowController: NSWindowController, CBCentralManagerDele
         scrollView.hasVerticalScroller = true
         scrollView.documentView = tableView
 
-        tableView.addTableColumn(column(id: "name", title: "Device", width: 170))
+        tableView.addTableColumn(column(id: "name", title: "设备", width: 170))
         tableView.addTableColumn(column(id: "id", title: "ID", width: 90))
         tableView.addTableColumn(column(id: "rssi", title: "RSSI", width: 70))
         tableView.delegate = self
@@ -69,8 +69,8 @@ final class PairDeviceWindowController: NSWindowController, CBCentralManagerDele
         buttonRow.alignment = .centerY
         buttonRow.spacing = 8
 
-        let pairButton = NSButton(title: "Pair", target: self, action: #selector(pairSelectedDevice))
-        let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancel))
+        let pairButton = NSButton(title: "配对", target: self, action: #selector(pairSelectedDevice))
+        let cancelButton = NSButton(title: "取消", target: self, action: #selector(cancel))
         buttonRow.addArrangedSubview(statusLabel)
         buttonRow.addArrangedSubview(NSView())
         buttonRow.addArrangedSubview(pairButton)
@@ -97,10 +97,10 @@ final class PairDeviceWindowController: NSWindowController, CBCentralManagerDele
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         guard central.state == .poweredOn else {
-            statusLabel.stringValue = "Bluetooth unavailable"
+            statusLabel.stringValue = "蓝牙不可用"
             return
         }
-        statusLabel.stringValue = "Scanning"
+        statusLabel.stringValue = "扫描中"
         central.scanForPeripherals(withServices: [CBUUID(string: BleProtocol.serviceUUID)])
     }
 
@@ -126,7 +126,7 @@ final class PairDeviceWindowController: NSWindowController, CBCentralManagerDele
         }
         tableView.reloadData()
         restoreSelection(selectedIdentifier)
-        statusLabel.stringValue = devices.isEmpty ? "Scanning" : "\(devices.count) found"
+        statusLabel.stringValue = devices.isEmpty ? "扫描中" : "发现 \(devices.count) 个设备"
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
@@ -139,7 +139,7 @@ final class PairDeviceWindowController: NSWindowController, CBCentralManagerDele
         let value: String
         switch tableColumn.identifier.rawValue {
         case "name":
-            value = existingDeviceIDs.contains(device.deviceID) ? "\(device.name) (paired)" : device.name
+            value = existingDeviceIDs.contains(device.deviceID) ? "\(device.name)（已配对）" : device.name
         case "id":
             value = device.deviceID
         case "rssi":
@@ -153,7 +153,7 @@ final class PairDeviceWindowController: NSWindowController, CBCentralManagerDele
     @objc private func pairSelectedDevice() {
         let row = tableView.selectedRow
         guard row >= 0, row < devices.count else {
-            statusLabel.stringValue = "Select a device"
+            statusLabel.stringValue = "请选择设备"
             return
         }
         central?.stopScan()

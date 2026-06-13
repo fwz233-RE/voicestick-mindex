@@ -1,14 +1,17 @@
 #include "asr_client_win.h"
 
 #include "asr_protocol.h"
+#include "byte_utils.h"
 
 #include <bcrypt.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace voicestick {
 
@@ -37,6 +40,89 @@ constexpr int kAsrResolveTimeoutMs = 5000;
 constexpr int kAsrConnectTimeoutMs = 5000;
 constexpr int kAsrSendTimeoutMs = 5000;
 constexpr int kAsrReceiveTimeoutMs = 15000;
+constexpr int kAliyunSampleRate = 16000;
+
+std::string JsonEscape(std::string_view text) {
+    std::string out;
+    out.reserve(text.size() + 8);
+    for (char ch : text) {
+        switch (ch) {
+        case '\\': out += "\\\\"; break;
+        case '"': out += "\\\""; break;
+        case '\n': out += "\\n"; break;
+        case '\r': out += "\\r"; break;
+        case '\t': out += "\\t"; break;
+        default: out.push_back(ch); break;
+        }
+    }
+    return out;
+}
+
+std::string JsonStringValue(std::string_view json, std::string_view key) {
+    const std::string needle = "\"" + std::string(key) + "\"";
+    const auto key_pos = json.find(needle);
+    if (key_pos == std::string_view::npos) return {};
+    const auto colon = json.find(':', key_pos + needle.size());
+    if (colon == std::string_view::npos) return {};
+    const auto first_quote = json.find('"', colon + 1);
+    if (first_quote == std::string_view::npos) return {};
+    std::string out;
+    bool escaped = false;
+    for (auto i = first_quote + 1; i < json.size(); ++i) {
+        char ch = json[i];
+        if (escaped) {
+            out.push_back(ch);
+            escaped = false;
+        } else if (ch == '\\') {
+            escaped = true;
+        } else if (ch == '"') {
+            return out;
+        } else {
+            out.push_back(ch);
+        }
+    }
+    return {};
+}
+
+std::string AliyunTaskId(std::string_view session_id) {
+    std::string out;
+    out.reserve(32);
+    for (char ch : session_id) {
+        if (std::isxdigit(static_cast<unsigned char>(ch))) {
+            out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+            if (out.size() == 32) break;
+        }
+    }
+    return out;
+}
+
+std::string AliyunRunTaskJson(const AppConfig& config, std::string_view task_id) {
+    const auto model = config.aliyun_asr_model.empty() ? std::string("fun-asr-realtime") : config.aliyun_asr_model;
+    const auto normalized_task_id = AliyunTaskId(task_id);
+    return "{\"header\":{\"action\":\"run-task\",\"task_id\":\"" + JsonEscape(normalized_task_id) +
+           "\",\"streaming\":\"duplex\"},\"payload\":{\"task_group\":\"audio\",\"task\":\"asr\","
+           "\"function\":\"recognition\",\"model\":\"" + JsonEscape(model) +
+           "\",\"parameters\":{\"sample_rate\":" + std::to_string(kAliyunSampleRate) +
+           ",\"format\":\"opus\"},\"input\":{}}}";
+}
+
+std::string AliyunFinishTaskJson(std::string_view task_id) {
+    const auto normalized_task_id = AliyunTaskId(task_id);
+    return "{\"header\":{\"action\":\"finish-task\",\"task_id\":\"" + JsonEscape(normalized_task_id) +
+           "\",\"streaming\":\"duplex\"},\"payload\":{\"input\":{}}}";
+}
+
+std::string AliyunSentenceText(std::string_view json) {
+    auto text = JsonStringValue(json, "text");
+    return text;
+}
+
+std::string AliyunErrorMessage(std::string_view json) {
+    auto message = JsonStringValue(json, "error_message");
+    if (!message.empty()) return message;
+    message = JsonStringValue(json, "message");
+    return message.empty() ? std::string(json) : message;
+}
 
 void SetAsrWinHttpTimeouts(HINTERNET handle) {
     if (!handle) return;
@@ -108,6 +194,9 @@ bool AsrClientWin::StartReusableSession() {
         }
     }
     if (has_ready_websocket) {
+        if (config_.asr_provider == AsrProvider::kAliyun) {
+            return SendAliyunRunTaskFrame(ready_session_id);
+        }
         return SendReusableFrameOrFail(
             AsrProtocol::MakeStartSessionFrame(config_, ready_session_id, session_options_),
             "start ASR session");
@@ -141,20 +230,34 @@ std::string AsrClientWin::LastStartError() const {
 }
 
 void AsrClientWin::CancelReusableSession() {
-    std::lock_guard lock(mutex_);
-    queued_audio_chunks_.clear();
-    latest_session_transcript_.clear();
-    emitted_definite_segment_keys_.clear();
-    if (session_state_ == SessionState::kStarting ||
-        session_state_ == SessionState::kStreaming ||
-        session_state_ == SessionState::kFinishing) {
-        if (websocket_ && !current_session_id_.empty()) {
-            SendFrame(websocket_, AsrProtocol::MakeCancelSessionFrame(
-                config_, current_session_id_, session_options_));
+    HINTERNET websocket = nullptr;
+    std::string session_id;
+    bool should_send_cancel = false;
+    {
+        std::lock_guard lock(mutex_);
+        queued_audio_chunks_.clear();
+        latest_session_transcript_.clear();
+        emitted_definite_segment_keys_.clear();
+        should_send_cancel = session_state_ == SessionState::kStarting ||
+                             session_state_ == SessionState::kStreaming ||
+                             session_state_ == SessionState::kFinishing;
+        websocket = websocket_;
+        session_id = current_session_id_;
+        current_session_id_.clear();
+        session_state_ = SessionState::kIdle;
+    }
+    if (should_send_cancel && websocket && !session_id.empty()) {
+        if (config_.asr_provider == AsrProvider::kAliyun) {
+            const auto frame = AliyunFinishTaskJson(session_id);
+            WinHttpWebSocketSend(websocket,
+                                 WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE,
+                                 reinterpret_cast<void*>(const_cast<char*>(frame.data())),
+                                 static_cast<DWORD>(frame.size()));
+        } else {
+            SendFrame(websocket, AsrProtocol::MakeCancelSessionFrame(
+                config_, session_id, session_options_));
         }
     }
-    current_session_id_.clear();
-    session_state_ = SessionState::kIdle;
 }
 
 void AsrClientWin::ShutdownReusableConnection() {
@@ -163,7 +266,8 @@ void AsrClientWin::ShutdownReusableConnection() {
     {
         std::lock_guard lock(mutex_);
         if (websocket_) {
-            if (connection_state_ == ConnectionState::kReady) {
+            if (connection_state_ == ConnectionState::kReady &&
+                config_.asr_provider != AsrProvider::kAliyun) {
                 SendFrame(websocket_,
                           AsrProtocol::MakeFinishConnectionFrame(config_, session_options_));
             }
@@ -237,15 +341,19 @@ void AsrClientWin::RunReusableWebSocket() {
     }
     SetAsrWinHttpTimeouts(request);
 
-    AddHeader(request, "X-Api-Key", config_.ActiveApiKey());
-    AddHeader(request, "X-Api-Request-Id", GenerateSessionId());
-    AddHeader(request, "X-Api-Sequence", "-1");
-    if (config_.asr_provider == AsrProvider::kVoiceStickCloud) {
-        if (!config_.paired_device_ids.empty()) {
-            AddHeader(request, "X-Device-Id", config_.paired_device_ids.front());
-        }
+    if (config_.asr_provider == AsrProvider::kAliyun) {
+        AddHeader(request, "Authorization", "bearer " + config_.ActiveApiKey());
     } else {
-        AddHeader(request, "X-Api-Resource-Id", config_.resource_id);
+        AddHeader(request, "X-Api-Key", config_.ActiveApiKey());
+        AddHeader(request, "X-Api-Request-Id", GenerateSessionId());
+        AddHeader(request, "X-Api-Sequence", "-1");
+        if (config_.asr_provider == AsrProvider::kVoiceStickCloud) {
+            if (!config_.paired_device_ids.empty()) {
+                AddHeader(request, "X-Device-Id", config_.paired_device_ids.front());
+            }
+        } else {
+            AddHeader(request, "X-Api-Resource-Id", config_.resource_id);
+        }
     }
 
     if (!WinHttpSetOption(request, WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET, nullptr, 0)) {
@@ -279,8 +387,19 @@ void AsrClientWin::RunReusableWebSocket() {
         websocket_ = websocket;
         connection_state_ = ConnectionState::kConnecting;
     }
-    if (!SendReusableFrameOrFail(AsrProtocol::MakeStartConnectionFrame(config_, session_options_),
-                                 "start ASR connection")) {
+    if (config_.asr_provider == AsrProvider::kAliyun) {
+        std::string task_id;
+        {
+            std::lock_guard lock(mutex_);
+            connection_state_ = ConnectionState::kReady;
+            task_id = current_session_id_;
+        }
+        if (!SendAliyunRunTaskFrame(task_id)) {
+            CloseHandles(session, connect, request, websocket);
+            return;
+        }
+    } else if (!SendReusableFrameOrFail(AsrProtocol::MakeStartConnectionFrame(config_, session_options_),
+                                        "start ASR connection")) {
         CloseHandles(session, connect, request, websocket);
         return;
     }
@@ -304,8 +423,12 @@ void AsrClientWin::FlushQueuedAudioChunks() {
         session_id = current_session_id_;
     }
     for (const auto& chunk : chunks) {
-        if (!SendReusableFrameOrFail(AsrProtocol::MakeTaskRequestFrame(chunk.data, session_id),
-                                     "send ASR audio")) {
+        if (config_.asr_provider == AsrProvider::kAliyun) {
+            if (!SendReusableFrameOrFail(chunk.data, "send ASR audio")) {
+                return;
+            }
+        } else if (!SendReusableFrameOrFail(AsrProtocol::MakeTaskRequestFrame(chunk.data, session_id),
+                                            "send ASR audio")) {
             return;
         }
         if (chunk.is_last) {
@@ -341,7 +464,13 @@ void AsrClientWin::ReceiveOneReusable(HINTERNET websocket) {
     }
     if (bytes_read == 0) return;
     if (type != WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE &&
-        type != WINHTTP_WEB_SOCKET_BINARY_FRAGMENT_BUFFER_TYPE) {
+        type != WINHTTP_WEB_SOCKET_BINARY_FRAGMENT_BUFFER_TYPE &&
+        type != WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE &&
+        type != WINHTTP_WEB_SOCKET_UTF8_FRAGMENT_BUFFER_TYPE) {
+        return;
+    }
+    if (config_.asr_provider == AsrProvider::kAliyun) {
+        HandleAliyunResponse(std::span(buffer.data(), bytes_read));
         return;
     }
     HandleReusableResponse(std::span(buffer.data(), bytes_read), websocket);
@@ -494,8 +623,12 @@ void AsrClientWin::SendReusableAudio(std::span<const std::uint8_t> data, bool is
         FailReusableSession("ASR WebSocket is not connected");
         return;
     }
-    if (!SendReusableFrameOrFail(AsrProtocol::MakeTaskRequestFrame(data, session_id),
-                                 "send ASR audio")) {
+    if (config_.asr_provider == AsrProvider::kAliyun) {
+        if (!SendReusableFrameOrFail(ByteVector(data.begin(), data.end()), "send ASR audio")) {
+            return;
+        }
+    } else if (!SendReusableFrameOrFail(AsrProtocol::MakeTaskRequestFrame(data, session_id),
+                                        "send ASR audio")) {
         return;
     }
     if (is_last) {
@@ -518,8 +651,12 @@ void AsrClientWin::FinishReusableSessionIfNeeded() {
         session_state_ = SessionState::kFinishing;
         session_id = current_session_id_;
     }
-    SendReusableFrameOrFail(AsrProtocol::MakeFinishSessionFrame(config_, session_id, session_options_),
-                            "finish ASR session");
+    if (config_.asr_provider == AsrProvider::kAliyun) {
+        SendAliyunFinishTaskFrame(session_id);
+    } else {
+        SendReusableFrameOrFail(AsrProtocol::MakeFinishSessionFrame(config_, session_id, session_options_),
+                                "finish ASR session");
+    }
 }
 
 void AsrClientWin::FailReusableSession(const std::string& message) {
@@ -544,7 +681,12 @@ bool AsrClientWin::SendReusableFrameOrFail(const ByteVector& frame, const std::s
     bool should_notify = false;
     {
         std::lock_guard lock(mutex_);
-        if (websocket_ && SendFrame(websocket_, frame)) return true;
+        if (websocket_ && WinHttpWebSocketSend(websocket_,
+                                               WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE,
+                                               const_cast<std::uint8_t*>(frame.data()),
+                                               static_cast<DWORD>(frame.size())) == ERROR_SUCCESS) {
+            return true;
+        }
 
         const bool was_cancelled = cancelled_.load();
         const bool had_active_session = session_state_ != SessionState::kIdle;
@@ -560,6 +702,86 @@ bool AsrClientWin::SendReusableFrameOrFail(const ByteVector& frame, const std::s
     }
     if (should_notify && on_error) on_error(message);
     return false;
+}
+
+bool AsrClientWin::SendAliyunTextFrameOrFail(const std::string& text, const std::string& context) {
+    const auto message = "Failed to " + context;
+    bool should_notify = false;
+    {
+        std::lock_guard lock(mutex_);
+        if (websocket_ && WinHttpWebSocketSend(websocket_,
+                                               WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE,
+                                               reinterpret_cast<void*>(const_cast<char*>(text.data())),
+                                               static_cast<DWORD>(text.size())) == ERROR_SUCCESS) {
+            return true;
+        }
+
+        const bool was_cancelled = cancelled_.load();
+        const bool had_active_session = session_state_ != SessionState::kIdle;
+        last_start_error_ = message;
+        cancelled_ = true;
+        queued_audio_chunks_.clear();
+        current_session_id_.clear();
+        latest_session_transcript_.clear();
+        session_state_ = SessionState::kIdle;
+        connection_state_ = ConnectionState::kDisconnected;
+        websocket_ = nullptr;
+        should_notify = !was_cancelled && had_active_session;
+    }
+    if (should_notify && on_error) on_error(message);
+    return false;
+}
+
+bool AsrClientWin::SendAliyunRunTaskFrame(const std::string& task_id) {
+    return SendAliyunTextFrameOrFail(AliyunRunTaskJson(config_, task_id), "start ASR session");
+}
+
+bool AsrClientWin::SendAliyunFinishTaskFrame(const std::string& task_id) {
+    return SendAliyunTextFrameOrFail(AliyunFinishTaskJson(task_id), "finish ASR session");
+}
+
+void AsrClientWin::HandleAliyunResponse(std::span<const std::uint8_t> data) {
+    const auto text = Utf8FromBytes(data);
+    const auto event = JsonStringValue(text, "event");
+    if (event == "task-started") {
+        bool should_flush = false;
+        {
+            std::lock_guard lock(mutex_);
+            if (session_state_ == SessionState::kStarting) {
+                session_state_ = SessionState::kStreaming;
+                should_flush = true;
+            }
+        }
+        if (should_flush) FlushQueuedAudioChunks();
+        return;
+    }
+    if (event == "result-generated") {
+        auto transcript = AliyunSentenceText(text);
+        if (transcript.empty()) return;
+        {
+            std::lock_guard lock(mutex_);
+            latest_session_transcript_ = transcript;
+        }
+        if (on_partial) on_partial(transcript);
+        return;
+    }
+    if (event == "task-finished") {
+        std::string final_text;
+        {
+            std::lock_guard lock(mutex_);
+            final_text = latest_session_transcript_;
+            current_session_id_.clear();
+            latest_session_transcript_.clear();
+            emitted_definite_segment_keys_.clear();
+            queued_audio_chunks_.clear();
+            session_state_ = SessionState::kIdle;
+        }
+        if (on_final) on_final(final_text);
+        return;
+    }
+    if (event == "task-failed") {
+        FailReusableSession(AliyunErrorMessage(text));
+    }
 }
 
 void AsrClientWin::SetLastStartError(std::string message) {

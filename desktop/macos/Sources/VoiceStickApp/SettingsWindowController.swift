@@ -2,15 +2,17 @@ import AppKit
 
 final class SettingsWindowController: NSWindowController {
     private let providerPopup = NSPopUpButton()
-    private let apiKeyField = NSTextField()
-    private let applyTrialAPIKeyButton = NSButton(title: "Apply Trial", target: nil, action: nil)
+    private let apiKeyField = NSSecureTextField()
+    private let applyTrialAPIKeyButton = NSButton(title: "申请试用", target: nil, action: nil)
     private let resourcePopup = NSPopUpButton()
     private let hotwordsTextView = NSTextView()
     private let hotwordsScrollView = NSScrollView()
     private let llmBaseURLField = NSTextField()
-    private let llmAPIKeyField = NSTextField()
+    private let llmAPIKeyField = NSSecureTextField()
     private let llmModelField = NSTextField()
-    private let debugAudioButton = NSButton(checkboxWithTitle: "Save debug audio files", target: nil, action: nil)
+    private let aliyunAPIKeyStatusLabel = NSTextField(labelWithString: "")
+    private let llmAPIKeyStatusLabel = NSTextField(labelWithString: "")
+    private let debugAudioButton = NSButton(checkboxWithTitle: "保存调试音频文件", target: nil, action: nil)
     private let debugAudioDirectoryField = NSTextField()
     private let statusLabel = NSTextField(labelWithString: "")
     private var currentDisplayedProvider: ASRProvider = .volcengine
@@ -27,7 +29,7 @@ final class SettingsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "VoiceStick Settings"
+        window.title = "VoiceStick 设置"
         window.isReleasedWhenClosed = false
         super.init(window: window)
         buildContent()
@@ -37,6 +39,12 @@ final class SettingsWindowController: NSWindowController {
             selector: #selector(apiKeyFieldDidChange),
             name: NSControl.textDidChangeNotification,
             object: apiKeyField
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(apiKeyFieldDidChange),
+            name: NSControl.textDidChangeNotification,
+            object: llmAPIKeyField
         )
     }
 
@@ -69,44 +77,46 @@ final class SettingsWindowController: NSWindowController {
 
         stack.addArrangedSubview(sectionTitle("ASR"))
         configureProviderPopup()
-        stack.addArrangedSubview(row(label: "Provider", control: providerPopup))
+        stack.addArrangedSubview(row(label: "服务商", control: providerPopup))
         configureApplyTrialAPIKeyButton()
         stack.addArrangedSubview(row(label: "API Key", control: apiKeyControl()))
+        stack.addArrangedSubview(hintRow(aliyunAPIKeyStatusLabel))
         configureResourcePopup()
         let resourceRow = row(label: "Resource ID", control: resourcePopup)
         self.resourceRow = resourceRow
         stack.addArrangedSubview(resourceRow)
         configureHotwordsTextView()
-        stack.addArrangedSubview(row(label: "Hotwords", control: hotwordsScrollView))
-        stack.addArrangedSubview(hintRow("Separate hotwords with commas or new lines."))
+        stack.addArrangedSubview(row(label: "热词", control: hotwordsScrollView))
+        stack.addArrangedSubview(hintRow("多个热词请用逗号或换行分隔。"))
 
         stack.addArrangedSubview(sectionTitle("LLM"))
         stack.addArrangedSubview(row(label: "Base URL", control: llmBaseURLField))
         stack.addArrangedSubview(row(label: "API Key", control: llmAPIKeyField))
+        stack.addArrangedSubview(hintRow(llmAPIKeyStatusLabel))
         stack.addArrangedSubview(row(label: "Model", control: llmModelField))
 
         stack.addArrangedSubview(sectionTitle("Debug"))
-        stack.addArrangedSubview(row(label: "Audio Cache", control: debugAudioButton))
+        stack.addArrangedSubview(row(label: "音频缓存", control: debugAudioButton))
         let debugDirRow = NSStackView()
         debugDirRow.orientation = .horizontal
         debugDirRow.alignment = .centerY
         debugDirRow.spacing = 8
         debugAudioDirectoryField.isEditable = false
         debugAudioDirectoryField.lineBreakMode = .byTruncatingMiddle
-        let chooseButton = NSButton(title: "Choose...", target: self, action: #selector(chooseDebugDirectory))
+        let chooseButton = NSButton(title: "选择...", target: self, action: #selector(chooseDebugDirectory))
         debugDirRow.addArrangedSubview(debugAudioDirectoryField)
         debugDirRow.addArrangedSubview(chooseButton)
         debugAudioDirectoryField.widthAnchor.constraint(equalToConstant: 260).isActive = true
-        stack.addArrangedSubview(row(label: "Audio Folder", control: debugDirRow))
+        stack.addArrangedSubview(row(label: "音频文件夹", control: debugDirRow))
 
         let buttonRow = NSStackView()
         buttonRow.orientation = .horizontal
         buttonRow.alignment = .centerY
         buttonRow.spacing = 10
-        let openFolderButton = NSButton(title: "Open Config Folder", target: self, action: #selector(openConfigFolder))
+        let openFolderButton = NSButton(title: "打开配置文件夹", target: self, action: #selector(openConfigFolder))
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let saveButton = NSButton(title: "Save", target: self, action: #selector(saveSettings))
+        let saveButton = NSButton(title: "保存", target: self, action: #selector(saveSettings))
         saveButton.keyEquivalent = "\r"
         buttonRow.addArrangedSubview(openFolderButton)
         buttonRow.addArrangedSubview(statusLabel)
@@ -132,7 +142,8 @@ final class SettingsWindowController: NSWindowController {
     private func configureProviderPopup() {
         providerPopup.addItems(withTitles: [
             ASRProvider.voiceStickCloud.displayName,
-            ASRProvider.volcengine.displayName
+            ASRProvider.volcengine.displayName,
+            ASRProvider.aliyun.displayName
         ])
         providerPopup.target = self
         providerPopup.action = #selector(providerSelectionChanged)
@@ -199,6 +210,7 @@ final class SettingsWindowController: NSWindowController {
         }
         updateProviderRows()
         updateApplyTrialButton()
+        updateKeyStatusLabels()
         statusLabel.stringValue = ""
     }
 
@@ -209,10 +221,12 @@ final class SettingsWindowController: NSWindowController {
         apiKeyField.stringValue = apiKey(for: currentDisplayedProvider)
         updateProviderRows()
         updateApplyTrialButton()
+        updateKeyStatusLabels()
     }
 
     @objc private func apiKeyFieldDidChange() {
         updateApplyTrialButton()
+        updateKeyStatusLabels()
     }
 
     @objc private func applyTrialAPIKey() {
@@ -220,7 +234,7 @@ final class SettingsWindowController: NSWindowController {
         guard currentDisplayedProvider == .voiceStickCloud else { return }
 
         applyTrialAPIKeyButton.isEnabled = false
-        statusLabel.stringValue = "Applying trial API key..."
+        statusLabel.stringValue = "正在申请试用 API Key..."
         VoiceStickCloudAPI.applyTrialAPIKey(
             cloudURL: config.voiceStickCloudURL,
             deviceID: config.pairedDeviceIDs.first
@@ -232,20 +246,20 @@ final class SettingsWindowController: NSWindowController {
                 case .success(.apiKey(let apiKey)):
                     self.config.voiceStickAPIKey = apiKey
                     self.apiKeyField.stringValue = apiKey
-                    self.statusLabel.stringValue = "Trial API key applied."
+                    self.statusLabel.stringValue = "试用 API Key 已应用。"
                     self.updateApplyTrialButton()
                 case .success(.url(let url)):
-                    self.statusLabel.stringValue = "Opened trial application page."
+                    self.statusLabel.stringValue = "已打开试用申请页面。"
                     if !NSWorkspace.shared.open(url) {
                         self.showErrorAlert(
-                            title: "Could Not Open Trial Page",
+                            title: "无法打开试用页面",
                             message: url.absoluteString
                         )
                     }
                 case .failure(let error):
                     self.statusLabel.stringValue = ""
                     self.showErrorAlert(
-                        title: "Could Not Apply Trial API Key",
+                        title: "无法申请试用 API Key",
                         message: error.localizedDescription
                     )
                     self.updateApplyTrialButton()
@@ -275,6 +289,9 @@ final class SettingsWindowController: NSWindowController {
             voiceStickAPIKey: config.voiceStickAPIKey,
             voiceStickCloudURL: config.voiceStickCloudURL,
             volcengineAPIKey: config.volcengineAPIKey,
+            aliyunAPIKey: config.aliyunAPIKey,
+            aliyunASRURL: config.aliyunASRURL,
+            aliyunASRModel: config.aliyunASRModel,
             llmBaseURL: llmBaseURLField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
             llmAPIKey: llmAPIKeyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
             llmModel: llmModelField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -294,11 +311,11 @@ final class SettingsWindowController: NSWindowController {
         do {
             try config.save()
             onConfigChanged?(config)
-            statusLabel.stringValue = "Saved."
+            statusLabel.stringValue = "已保存。"
             window?.close()
         } catch {
             statusLabel.stringValue = ""
-            showErrorAlert(title: "Could Not Save Settings", message: error.localizedDescription)
+            showErrorAlert(title: "无法保存设置", message: error.localizedDescription)
         }
     }
 
@@ -312,6 +329,8 @@ final class SettingsWindowController: NSWindowController {
             return .voiceStickCloud
         case ASRProvider.volcengine.displayName:
             return .volcengine
+        case ASRProvider.aliyun.displayName:
+            return .aliyun
         default:
             return config.asrProvider
         }
@@ -323,6 +342,8 @@ final class SettingsWindowController: NSWindowController {
             return config.voiceStickAPIKey
         case .volcengine:
             return config.volcengineAPIKey
+        case .aliyun:
+            return config.aliyunAPIKey
         }
     }
 
@@ -333,6 +354,8 @@ final class SettingsWindowController: NSWindowController {
             config.voiceStickAPIKey = value
         case .volcengine:
             config.volcengineAPIKey = value
+        case .aliyun:
+            config.aliyunAPIKey = value
         }
     }
 
@@ -345,6 +368,21 @@ final class SettingsWindowController: NSWindowController {
         let isCloud = currentDisplayedProvider == .voiceStickCloud
         let isEmpty = apiKeyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         applyTrialAPIKeyButton.isHidden = !(isCloud && isEmpty)
+    }
+
+    private func updateKeyStatusLabels() {
+        var preview = config
+        switch currentDisplayedProvider {
+        case .voiceStickCloud:
+            preview.voiceStickAPIKey = apiKeyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .volcengine:
+            preview.volcengineAPIKey = apiKeyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .aliyun:
+            preview.aliyunAPIKey = apiKeyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        preview.llmAPIKey = llmAPIKeyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        aliyunAPIKeyStatusLabel.stringValue = currentDisplayedProvider == .aliyun ? preview.aliyunAPIKeySource.displayName : ""
+        llmAPIKeyStatusLabel.stringValue = preview.llmAPIKeySource.displayName
     }
 
     private func showErrorAlert(title: String, message: String) {
@@ -385,6 +423,11 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func hintRow(_ text: String) -> NSStackView {
+        let label = NSTextField(labelWithString: text)
+        return hintRow(label)
+    }
+
+    private func hintRow(_ label: NSTextField) -> NSStackView {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
@@ -393,7 +436,6 @@ final class SettingsWindowController: NSWindowController {
         let spacer = NSView()
         spacer.widthAnchor.constraint(equalToConstant: 120).isActive = true
 
-        let label = NSTextField(labelWithString: text)
         label.textColor = .secondaryLabelColor
         label.font = .systemFont(ofSize: 11)
         label.widthAnchor.constraint(greaterThanOrEqualToConstant: 300).isActive = true

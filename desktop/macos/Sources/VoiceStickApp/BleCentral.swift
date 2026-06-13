@@ -31,19 +31,19 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         var errorDescription: String? {
             switch self {
             case .noConnectedDevice:
-                return "No VoiceStick is connected."
+                return "没有已连接的 VoiceStick。"
             case .otaCharacteristicUnavailable:
-                return "The connected firmware does not expose BLE OTA."
+                return "已连接固件未提供 BLE OTA。"
             case .imageTooLarge:
-                return "Firmware image is larger than the OTA partition."
+                return "固件镜像大于 OTA 分区。"
             case .transferAlreadyActive:
-                return "A firmware update is already running."
+                return "已有固件更新正在运行。"
             case .firmwareUpdateCancelled:
-                return "Firmware update cancelled."
+                return "固件更新已取消。"
             case .peripheralWriteFailed(let message):
-                return "BLE write failed: \(message)"
+                return "BLE 写入失败：\(message)"
             case .deviceError(let code):
-                return "Device rejected OTA: \(code)"
+                return "设备拒绝 OTA：\(code)"
             }
         }
     }

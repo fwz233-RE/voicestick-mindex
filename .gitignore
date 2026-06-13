@@ -11,6 +11,8 @@ desktop/macos/.build-*/
 Package.resolved
 !desktop/macos/Package.resolved
 desktop/macos/Config/config.toml
+desktop/macos/Sources/VoiceStickApp/Private/
+desktop/windows/src/private/
 *.log
 *.p12
 scripts/.signing_sha1

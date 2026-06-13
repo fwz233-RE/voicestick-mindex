@@ -90,6 +90,9 @@ final class ASRWebSocketClient: ASRClient {
     private var latestSessionTranscript = ""
     private var emittedDefiniteSegmentKeys: Set<String> = []
     private var sessionOptions = ASRSessionOptions()
+    private var isAliyunProvider: Bool {
+        config.asrProvider == .aliyun
+    }
 
     var onPartial: ((String) -> Void)?
     var onSegment: ((ASRSegment) -> Void)?
@@ -133,12 +136,7 @@ final class ASRWebSocketClient: ASRClient {
     }
 
     private var providerAPIKey: String {
-        switch config.asrProvider {
-        case .voiceStickCloud:
-            return config.voiceStickAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        case .volcengine:
-            return config.volcengineAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
+        config.activeASRAPIKey
     }
 
     private var providerWebSocketURL: String {
@@ -147,6 +145,9 @@ final class ASRWebSocketClient: ASRClient {
             return config.voiceStickCloudURL.trimmingCharacters(in: .whitespacesAndNewlines)
         case .volcengine:
             return AppConfig.volcengineWebSocketURL
+        case .aliyun:
+            let url = config.aliyunASRURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            return url.isEmpty ? AppConfig.defaultAliyunASRURL : url
         }
     }
 
@@ -183,7 +184,11 @@ final class ASRWebSocketClient: ASRClient {
 
         switch connectionState {
         case .ready:
-            sendStartSession()
+            if isAliyunProvider {
+                sendAliyunRunTask()
+            } else {
+                sendStartSession()
+            }
         case .disconnected:
             connectWebSocket()
         case .connecting:
@@ -202,13 +207,17 @@ final class ASRWebSocketClient: ASRClient {
 
         var request = URLRequest(url: url)
         let connectID = UUID().uuidString
-        request.setValue(providerAPIKey, forHTTPHeaderField: "X-Api-Key")
-        request.setValue(config.resourceID, forHTTPHeaderField: "X-Api-Resource-Id")
-        if config.asrProvider == .voiceStickCloud, let deviceID = config.pairedDeviceIDs.first {
-            request.setValue(deviceID, forHTTPHeaderField: "X-Device-Id")
+        if isAliyunProvider {
+            request.setValue("bearer \(providerAPIKey)", forHTTPHeaderField: "Authorization")
+        } else {
+            request.setValue(providerAPIKey, forHTTPHeaderField: "X-Api-Key")
+            request.setValue(config.resourceID, forHTTPHeaderField: "X-Api-Resource-Id")
+            if config.asrProvider == .voiceStickCloud, let deviceID = config.pairedDeviceIDs.first {
+                request.setValue(deviceID, forHTTPHeaderField: "X-Device-Id")
+            }
+            request.setValue(connectID, forHTTPHeaderField: "X-Api-Request-Id")
+            request.setValue("-1", forHTTPHeaderField: "X-Api-Sequence")
         }
-        request.setValue(connectID, forHTTPHeaderField: "X-Api-Request-Id")
-        request.setValue("-1", forHTTPHeaderField: "X-Api-Sequence")
 
         connectionState = .connecting
         NSLog("ASR websocket connect provider=\(config.asrProvider.rawValue) request_id=\(connectID)")
@@ -216,7 +225,12 @@ final class ASRWebSocketClient: ASRClient {
         webSocket = task
         task.resume()
         receiveLoop()
-        sendEvent(.startConnection, sessionID: nil, payload: connectionPayload())
+        if isAliyunProvider {
+            connectionState = .ready
+            sendAliyunRunTask()
+        } else {
+            sendEvent(.startConnection, sessionID: nil, payload: connectionPayload())
+        }
     }
 
     private func sendStartSession() {
@@ -234,7 +248,11 @@ final class ASRWebSocketClient: ASRClient {
         case .starting:
             queuedAudioChunks.append(QueuedAudioChunk(data: data, isLast: isLast))
         case .streaming:
-            sendTaskRequest(data)
+            if isAliyunProvider {
+                sendAliyunAudioChunk(data)
+            } else {
+                sendTaskRequest(data)
+            }
             if isLast {
                 finishSessionIfNeeded()
             }
@@ -249,7 +267,11 @@ final class ASRWebSocketClient: ASRClient {
         let chunks = queuedAudioChunks
         queuedAudioChunks.removeAll(keepingCapacity: true)
         for chunk in chunks {
-            sendTaskRequest(chunk.data)
+            if isAliyunProvider {
+                sendAliyunAudioChunk(chunk.data)
+            } else {
+                sendTaskRequest(chunk.data)
+            }
             if chunk.isLast {
                 finishSessionIfNeeded()
             }
@@ -267,13 +289,21 @@ final class ASRWebSocketClient: ASRClient {
         guard let currentSessionID else { return }
         sessionState = .finishing
         NSLog("ASR websocket finish_session session_id=\(currentSessionID)")
-        sendEvent(.finishSession, sessionID: currentSessionID, payload: connectionPayload())
+        if isAliyunProvider {
+            sendAliyunFinishTask()
+        } else {
+            sendEvent(.finishSession, sessionID: currentSessionID, payload: connectionPayload())
+        }
     }
 
     private func cancelSession() {
         if sessionState == .starting || sessionState == .streaming || sessionState == .finishing {
-            if let currentSessionID {
-                sendEvent(.cancelSession, sessionID: currentSessionID, payload: connectionPayload())
+            if currentSessionID != nil {
+                if isAliyunProvider {
+                    sendAliyunFinishTask()
+                } else {
+                    sendEvent(.cancelSession, sessionID: currentSessionID, payload: connectionPayload())
+                }
             }
         }
 
@@ -290,7 +320,7 @@ final class ASRWebSocketClient: ASRClient {
             return
         }
 
-        let shouldSendFinishConnection = sendFinishConnection && connectionState == .ready
+        let shouldSendFinishConnection = sendFinishConnection && connectionState == .ready && !isAliyunProvider
         connectionState = .closing
         if shouldSendFinishConnection {
             sendEvent(.finishConnection, sessionID: nil, payload: connectionPayload(), closeAfterSend: true)
@@ -349,6 +379,89 @@ final class ASRWebSocketClient: ASRClient {
             serialization: 0x00,
             payload: data
         )
+    }
+
+    private func sendAliyunRunTask() {
+        guard let currentSessionID else {
+            failSession("Missing ASR session ID")
+            return
+        }
+        let model = config.aliyunASRModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? AppConfig.defaultAliyunASRModel
+            : config.aliyunASRModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let taskID = aliyunTaskID(currentSessionID)
+        let payload: [String: Any] = [
+            "header": [
+                "action": "run-task",
+                "task_id": taskID,
+                "streaming": "duplex"
+            ],
+            "payload": [
+                "task_group": "audio",
+                "task": "asr",
+                "function": "recognition",
+                "model": model,
+                "parameters": [
+                    "sample_rate": 16_000,
+                    "format": "opus"
+                ],
+                "input": [:]
+            ]
+        ]
+        sendAliyunJSON(payload, context: "start ASR session")
+    }
+
+    private func sendAliyunAudioChunk(_ data: Data) {
+        guard let sendingTask = webSocket else {
+            failSession("ASR WebSocket is not connected")
+            return
+        }
+        sendingTask.send(.data(data)) { [weak self] error in
+            guard let error else { return }
+            self?.queue.async {
+                self?.failSession(error.localizedDescription)
+            }
+        }
+    }
+
+    private func sendAliyunFinishTask() {
+        guard let currentSessionID else { return }
+        let payload: [String: Any] = [
+            "header": [
+                "action": "finish-task",
+                "task_id": aliyunTaskID(currentSessionID),
+                "streaming": "duplex"
+            ],
+            "payload": ["input": [:]]
+        ]
+        sendAliyunJSON(payload, context: "finish ASR session")
+    }
+
+    private func sendAliyunJSON(_ payload: [String: Any], context: String) {
+        guard let sendingTask = webSocket else {
+            failSession("ASR WebSocket is not connected")
+            return
+        }
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            guard let text = String(data: data, encoding: .utf8) else {
+                failSession("Invalid ASR request JSON")
+                return
+            }
+            sendingTask.send(.string(text)) { [weak self] error in
+                guard let error else { return }
+                NSLog("ASR send \(context) error: \(error.localizedDescription)")
+                self?.queue.async {
+                    self?.failSession(error.localizedDescription)
+                }
+            }
+        } catch {
+            failSession(error.localizedDescription)
+        }
+    }
+
+    private func aliyunTaskID(_ sessionID: String) -> String {
+        String(sessionID.filter { $0.isHexDigit }.prefix(32)).lowercased()
     }
 
     private func sendEventFrame(
@@ -431,12 +544,72 @@ final class ASRWebSocketClient: ASRClient {
     private func handle(_ message: URLSessionWebSocketTask.Message) {
         switch message {
         case .string(let text):
-            NSLog("ASR ignored text response bytes=\(text.utf8.count)")
+            if isAliyunProvider {
+                handleAliyunResponse(text)
+            } else {
+                NSLog("ASR ignored text response bytes=\(text.utf8.count)")
+            }
         case .data(let data):
-            handleBinaryResponse(data)
+            if isAliyunProvider, let text = String(data: data, encoding: .utf8), text.hasPrefix("{") {
+                handleAliyunResponse(text)
+            } else {
+                handleBinaryResponse(data)
+            }
         @unknown default:
             break
         }
+    }
+
+    private func handleAliyunResponse(_ text: String) {
+        guard
+            let data = text.data(using: .utf8),
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let header = object["header"] as? [String: Any],
+            let event = header["event"] as? String
+        else {
+            return
+        }
+
+        switch event {
+        case "task-started":
+            guard sessionState == .starting else { return }
+            sessionState = .streaming
+            flushQueuedAudioChunks()
+        case "result-generated":
+            guard let transcript = aliyunTranscript(from: object), !transcript.isEmpty else { return }
+            latestSessionTranscript = transcript
+            DispatchQueue.main.async { [weak self] in
+                self?.onPartial?(transcript)
+            }
+        case "task-finished":
+            let finalText = latestSessionTranscript
+            currentSessionID = nil
+            latestSessionTranscript = ""
+            emittedDefiniteSegmentKeys.removeAll(keepingCapacity: true)
+            queuedAudioChunks.removeAll(keepingCapacity: true)
+            sessionState = .idle
+            DispatchQueue.main.async { [weak self] in
+                self?.onFinal?(finalText)
+            }
+        case "task-failed":
+            let message = (header["error_message"] as? String)
+                ?? (header["message"] as? String)
+                ?? "阿里云 ASR 任务失败"
+            failSession(message)
+        default:
+            break
+        }
+    }
+
+    private func aliyunTranscript(from object: [String: Any]) -> String? {
+        guard
+            let payload = object["payload"] as? [String: Any],
+            let output = payload["output"] as? [String: Any],
+            let sentence = output["sentence"] as? [String: Any]
+        else {
+            return nil
+        }
+        return sentence["text"] as? String
     }
 
     private func handleBinaryResponse(_ data: Data) {
@@ -606,7 +779,7 @@ final class ASRWebSocketClient: ASRClient {
             failSession(error.localizedDescription)
             return
         }
-        let message = String(data: body, encoding: .utf8) ?? "Unknown ASR error"
+        let message = String(data: body, encoding: .utf8) ?? "未知 ASR 错误"
         NSLog("ASR server error code=\(code): \(message)")
         let parsedError = parsedErrorMessage(code: code, message: message)
         failSession(parsedError.message)

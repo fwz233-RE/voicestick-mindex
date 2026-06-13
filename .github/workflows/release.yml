@@ -298,6 +298,6 @@ jobs:
       - name: Trigger website deploy on main
         run: |
           set -euo pipefail
-          gh workflow run deploy-website.yml --repo 78/voicestick --ref main
+          gh workflow run deploy-website.yml --repo "$GITHUB_REPOSITORY" --ref main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

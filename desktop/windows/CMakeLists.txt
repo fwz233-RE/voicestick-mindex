@@ -8,6 +8,9 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 include(FetchContent)
@@ -65,10 +68,13 @@ add_executable(VoiceStickApp WIN32
 
 target_include_directories(VoiceStickApp PRIVATE resources ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(VoiceStickApp PRIVATE
-    VOICESTICK_APPCAST_URL="https://78.github.io/voicestick/appcast.xml"
+    VOICESTICK_APPCAST_URL="https://fwz233-re.github.io/voicestick-mindex/appcast.xml"
 )
 
 set_target_properties(VoiceStickApp PROPERTIES OUTPUT_NAME VoiceStick)
+set_source_files_properties(resources/VoiceStick.rc PROPERTIES
+    OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/app.ico;${CMAKE_CURRENT_SOURCE_DIR}/resources/tray.ico"
+)
 
 target_link_libraries(VoiceStickApp PRIVATE
     voicestick_core

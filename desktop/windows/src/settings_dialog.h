@@ -47,6 +47,8 @@ private:
     HWND llm_base_url_edit_ = nullptr;
     HWND llm_api_key_edit_ = nullptr;
     HWND llm_model_edit_ = nullptr;
+    HWND aliyun_key_status_label_ = nullptr;
+    HWND llm_key_status_label_ = nullptr;
     HWND debug_audio_check_ = nullptr;
     HWND debug_dir_edit_ = nullptr;
     HWND resource_label_ = nullptr;
@@ -56,7 +58,7 @@ private:
     std::vector<HWND> label_controls_;
 
     static constexpr int kClientWidth = 640;
-    static constexpr int kClientHeight = 500;
+    static constexpr int kClientHeight = 540;
     static constexpr UINT kIdProviderCombo = 2001;
     static constexpr UINT kIdApiKeyEdit = 2002;
     static constexpr UINT kIdResourceCombo = 2003;
