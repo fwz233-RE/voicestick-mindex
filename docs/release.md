@@ -122,6 +122,5 @@ https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmware
 The release is complete when:
 
 - GitHub Release contains current DMG, DMG checksum, Windows installer, firmware images, firmware checksums, and manifest.
-- No obsolete macOS ZIP update assets remain in the current Release.
 - firmware `latest/manifest.json` reports the new version.
 - the website points users to GitHub Release downloads.

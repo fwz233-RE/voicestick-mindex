@@ -8,7 +8,7 @@
 https://fwz233-re.github.io/voicestick-mindex/
 ```
 
-macOS 应用只检测 GitHub 最新 Release 是否存在新版本；发现新版本后会打开下载页面，由用户手动下载 DMG 并重新安装。
+macOS 和 Windows 应用只检测 GitHub 最新 Release 是否存在新版本；发现新版本后会打开下载页面，由用户手动下载安装包并重新安装。
 
 ## 发布流程
 
@@ -54,7 +54,7 @@ npm run build
 
 - `.github/workflows/release.yml` 会在 `v*` 标签或手动触发时运行。它会构建 macOS 应用，对 DMG 进行签名和公证，把 DMG 与校验文件上传到匹配的 GitHub Release，构建版本化 OTA 和合并固件镜像，将固件清单发布到 OSS，并部署 `website/dist` 到 GitHub Pages。
 - `.github/workflows/build-macos-unsigned.yml` 可以手动构建未公证的 macOS DMG，并可覆盖上传到指定 GitHub Release。
-- `scripts/build-msi.bat` 在插入 USB 签名密钥的本地 Windows 签名机上运行。生成的 Windows 安装包需要上传到匹配的 GitHub Release。
+- `scripts/build-exe-installer.bat` 在插入 USB 签名密钥的本地 Windows 签名机上运行。生成的 Windows 安装包需要上传到匹配的 GitHub Release。
 - `.github/workflows/deploy-website.yml` 会在 `main` 分支的 `website/**` 变更时运行，也可以手动触发。
 
 发布构建需要配置以下仓库密钥：

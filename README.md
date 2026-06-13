@@ -143,7 +143,7 @@ scripts/build-macos.sh --release
 scripts/make-dmg.sh
 ```
 
-构建脚本会写出 `build/VoiceStick-<version>.app` 和 `build/VoiceStick-<version>.dmg`。应用更新只检测 GitHub 最新 Release；发现新版本后打开 Release 下载页，由用户手动下载安装 DMG。
+构建脚本会写出 `build/VoiceStick-<version>.app` 和 `build/VoiceStick-<version>.dmg`。桌面应用更新只检测 GitHub 最新 Release；发现新版本后打开 Release 下载页，由用户手动下载安装包。
 
 构建 Windows 分发版本时，安装包在本地签名机上生成。Windows 签名证书预期放在本地签名机上，例如 USB 硬件密钥：
 
@@ -159,7 +159,7 @@ scripts\build-exe-installer.bat
 
 | 文件 | 用途 |
 | --- | --- |
-| `voicestick-firmware-sticks3-ota-<version>.bin` | macOS 应用使用的 BLE OTA 镜像 |
+| `voicestick-firmware-sticks3-ota-<version>.bin` | 桌面应用使用的 BLE OTA 镜像 |
 | `voicestick-firmware-sticks3-merged-<version>.bin` | 浏览器 / USB 刷写镜像，写入 offset `0x0` |
 | `manifest.json` | 应用和网站使用的最新固件元数据 |
 
@@ -170,7 +170,7 @@ voicestick/firmwares/<version>/manifest.json
 voicestick/firmwares/latest/manifest.json
 ```
 
-macOS 应用会在启动、设备连接或重连时检查稳定的 latest manifest URL，并且运行期间最多每 24 小时自动检查一次。菜单里也提供 `Check for Firmware Updates` 用于手动刷新。如果已连接设备上报的 `firmware_version` 低于清单版本，它的设备子菜单会显示 `Update to <version>...`。应用会下载清单中的 `ota_url`，并校验 `ota_size` 和 `ota_sha256` 后再开始 BLE OTA。
+桌面应用会在启动、设备连接或重连时检查稳定的 latest manifest URL，并且运行期间最多每 24 小时自动检查一次。菜单里也提供 `Check for Firmware Updates` 用于手动刷新。如果已连接设备上报的 `firmware_version` 低于清单版本，它的设备子菜单会显示 `Update to <version>...`。应用会下载清单中的 `ota_url`，并校验 `ota_size` 和 `ota_sha256` 后再开始 BLE OTA。
 
 运行 release workflow 前需要配置以下 GitHub secrets：
 
