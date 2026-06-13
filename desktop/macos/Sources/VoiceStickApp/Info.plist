@@ -29,13 +29,5 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>SUFeedURL</key>
-	<string>https://fwz233-re.github.io/voicestick-mindex/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>3JnsktQiuygz/L9+t9w2fnvryjWNH3yq5+o6Osed2aM=</string>
-	<key>SUScheduledCheckInterval</key>
-	<integer>86400</integer>
 </dict>
 </plist>

@@ -41,7 +41,6 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 
 [Files]
 Source: "{#BuildDir}\VoiceStick.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\WinSparkle.dll"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\VoiceStick"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"

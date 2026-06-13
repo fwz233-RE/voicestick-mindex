@@ -136,24 +136,24 @@ swift run VoiceStickApp
 
 应用是菜单栏辅助应用，会请求蓝牙权限。文本输入使用模拟 `Command-V` 加可选 Return。如果 macOS 阻止键盘事件，请在系统设置中给运行终端或应用授予辅助功能权限。
 
-构建带 Sparkle 更新能力的 macOS 分发版本：
+构建 macOS 分发版本：
 
 ```sh
-SPARKLE_PUBLIC_ED_KEY="..." scripts/build-macos.sh --release
+scripts/build-macos.sh --release
 scripts/make-dmg.sh
 ```
 
-构建脚本会写出 `build/VoiceStick-<version>.app`、`build/VoiceStick-<version>.zip` 和 Sparkle 签名文件。把 DMG 和 ZIP 上传到 GitHub Releases 后，再更新 `website/appcast.xml`，供 GitHub Pages 更新源使用。
+构建脚本会写出 `build/VoiceStick-<version>.app` 和 `build/VoiceStick-<version>.dmg`。应用更新只检测 GitHub 最新 Release；发现新版本后打开 Release 下载页，由用户手动下载安装 DMG。
 
-构建带 WinSparkle 更新能力的 Windows 分发版本时，MSI 是更新包。Windows 签名证书预期放在本地签名机上，例如 USB 硬件密钥：
+构建 Windows 分发版本时，安装包在本地签名机上生成。Windows 签名证书预期放在本地签名机上，例如 USB 硬件密钥：
 
 ```bat
-scripts\build-msi.bat
+scripts\build-exe-installer.bat
 ```
 
-脚本会在本地签名 `VoiceStick.exe`、`WinSparkle.dll` 和 `VoiceStick_<version>.msi`。把生成的 MSI 上传到匹配的 GitHub Release 后，手动运行 `Deploy Website to GitHub Pages` workflow，让共享 appcast 指向 Release 中的 Windows 资源 URL。
+脚本会在本地签名 `VoiceStick.exe` 和 `VoiceStickSetup-<version>.exe`。把生成的安装包上传到匹配的 GitHub Release。
 
-推送 `v<version>` 标签后，GitHub Actions 可以自动完成 macOS 和固件发布路径。标签必须与 `VERSION` 匹配，例如 `VERSION=0.2.1` 对应 `v0.2.1`。release workflow 会把 macOS DMG / ZIP / signature 和固件资源发布到 GitHub Releases，然后部署网站和 appcast 到 GitHub Pages。Windows MSI 后续从本地签名机上传。完整发布流程，包括 Windows 优先和 Windows 后补流程，见 `docs/release.md`。
+推送 `v<version>` 标签后，GitHub Actions 可以自动完成 macOS 和固件发布路径。标签必须与 `VERSION` 匹配，例如 `VERSION=0.3.5` 对应 `v0.3.5`。release workflow 会把 macOS DMG、DMG 校验文件和固件资源发布到 GitHub Releases，然后部署网站到 GitHub Pages。Windows 安装包后续从本地签名机上传。完整发布流程见 `docs/release.md`。
 
 同一个 release workflow 还会使用 ESP-IDF v5.5.1 构建 StickS3 固件，并把固件产物上传到阿里云 OSS：
 

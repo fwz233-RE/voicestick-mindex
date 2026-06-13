@@ -3,14 +3,6 @@
 #
 # Produces:
 #   build/VoiceStick-<version>.app
-#   build/VoiceStick-<version>.zip
-#   build/VoiceStick-<version>.signature  (when Sparkle sign_update is available)
-#
-# Optional environment:
-#   VOICESTICK_APPCAST_URL=https://fwz233-re.github.io/voicestick-mindex/appcast.xml
-#   SPARKLE_PUBLIC_ED_KEY=<public key from Sparkle generate_keys>
-#   SPARKLE_PRIVATE_ED_KEY=<private key exported by Sparkle generate_keys -x>
-#   SPARKLE_KEY_ACCOUNT=voicestick
 
 set -euo pipefail
 
@@ -23,7 +15,6 @@ ENTITLEMENTS="$DESKTOP_DIR/VoiceStick.entitlements"
 VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 CONFIG="${1:---release}"
 TARGET_ARCHS="arm64 x86_64"
-SPARKLE_KEY_ACCOUNT="${SPARKLE_KEY_ACCOUNT:-voicestick}"
 SWIFT_EXTRA_FLAGS=()
 if [ -f "$DESKTOP_DIR/Sources/VoiceStickApp/Private/PrivateEmbeddedAPIKey.swift" ] || [ -f "$DESKTOP_DIR/Sources/VoiceStickApp/Private/EmbeddedAPIKey.swift" ]; then
     SWIFT_EXTRA_FLAGS+=("-Xswiftc" "-DPRIVATE_EMBEDDED_API_KEY")
@@ -61,17 +52,6 @@ echo "===================================="
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$PLIST"
-
-if [ -n "${VOICESTICK_APPCAST_URL:-}" ]; then
-    /usr/libexec/PlistBuddy -c "Set :SUFeedURL $VOICESTICK_APPCAST_URL" "$PLIST"
-fi
-
-if [ -n "${SPARKLE_PUBLIC_ED_KEY:-}" ]; then
-    /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $SPARKLE_PUBLIC_ED_KEY" "$PLIST"
-elif /usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$PLIST" | grep -q "REPLACE_WITH"; then
-    echo "WARNING: SUPublicEDKey is still a placeholder."
-    echo "         Generate Sparkle keys before shipping a public release."
-fi
 
 for ARCH in $TARGET_ARCHS; do
     echo ""
@@ -113,15 +93,6 @@ else
     echo "WARNING: App icon was not found: $ICON_PATH"
 fi
 
-SPARKLE_FRAMEWORK="$(find -L "$DESKTOP_DIR/.build-arm64/artifacts" -name Sparkle.framework -type d 2>/dev/null | head -1 || true)"
-if [ -n "$SPARKLE_FRAMEWORK" ]; then
-    cp -R "$SPARKLE_FRAMEWORK" "$APP_DIR/Contents/Frameworks/"
-    install_name_tool -add_rpath "@loader_path/../Frameworks" "$APP_DIR/Contents/MacOS/VoiceStickApp" 2>/dev/null || true
-else
-    echo "Error: Sparkle.framework was not found in SwiftPM artifacts."
-    exit 1
-fi
-
 CODESIGN_IDENTITY="-"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application"; then
     CODESIGN_IDENTITY="$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')"
@@ -142,7 +113,7 @@ sign_code() {
     fi
 }
 
-sign_embedded_frameworks() {
+sign_embedded_code() {
     local app_dir="$1"
     local frameworks_dir="$app_dir/Contents/Frameworks"
     if [ ! -d "$frameworks_dir" ]; then
@@ -163,7 +134,7 @@ if [ "$CODESIGN_IDENTITY" != "-" ]; then
 else
     echo "Using ad-hoc signature."
 fi
-sign_embedded_frameworks "$APP_DIR"
+sign_embedded_code "$APP_DIR"
 sign_code "$APP_DIR" "$ENTITLEMENTS"
 
 echo "Verifying app signature..."
@@ -179,63 +150,8 @@ else
     echo "Skipping entitlement check for ad-hoc signature."
 fi
 
-SPARKLE_BINARY="$APP_DIR/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle"
-if [ -f "$SPARKLE_BINARY" ]; then
-    echo "Checking Sparkle load path and signature..."
-    otool -L "$APP_DIR/Contents/MacOS/VoiceStickApp" | grep -q '@rpath/Sparkle.framework/Versions/B/Sparkle'
-    codesign --verify --strict --verbose=2 "$APP_DIR/Contents/Frameworks/Sparkle.framework"
-    if [ "$CODESIGN_IDENTITY" != "-" ]; then
-        APP_TEAM_ID="$(codesign -dv "$APP_DIR" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
-        SPARKLE_TEAM_ID="$(codesign -dv "$APP_DIR/Contents/Frameworks/Sparkle.framework" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
-        if [ -z "$APP_TEAM_ID" ] || [ "$APP_TEAM_ID" != "$SPARKLE_TEAM_ID" ]; then
-            echo "Error: Sparkle.framework Team ID does not match the app Team ID."
-            echo "       App Team ID: ${APP_TEAM_ID:-missing}"
-            echo "   Sparkle Team ID: ${SPARKLE_TEAM_ID:-missing}"
-            exit 1
-        fi
-    fi
-else
-    echo "Error: bundled Sparkle binary was not found: $SPARKLE_BINARY"
-    exit 1
-fi
-
-ZIP_PATH="$BUILD_DIR/VoiceStick-${VERSION}.zip"
-SIGNATURE_PATH="${ZIP_PATH%.zip}.signature"
-STAGING_DIR="$BUILD_DIR/.sparkle-staging"
-rm -rf "$STAGING_DIR" "$ZIP_PATH" "$SIGNATURE_PATH"
-mkdir -p "$STAGING_DIR"
-ditto --norsrc --noextattr "$APP_DIR" "$STAGING_DIR/VoiceStick.app"
-
-echo ""
-echo "Creating Sparkle ZIP..."
-ditto -c -k --norsrc --noextattr --keepParent "$STAGING_DIR/VoiceStick.app" "$ZIP_PATH"
-rm -rf "$STAGING_DIR"
-
-SIGN_TOOL="$(find -L "$DESKTOP_DIR/.build-arm64/artifacts" -name sign_update -type f 2>/dev/null | head -1 || true)"
-if [ -n "$SIGN_TOOL" ] && [ -x "$SIGN_TOOL" ]; then
-    echo "Signing Sparkle ZIP..."
-    if [ -n "${SPARKLE_PRIVATE_ED_KEY:-}" ]; then
-        SIGN_OUTPUT="$(printf '%s' "$SPARKLE_PRIVATE_ED_KEY" | "$SIGN_TOOL" --ed-key-file - "$ZIP_PATH" 2>&1 || true)"
-    else
-        SIGN_OUTPUT="$("$SIGN_TOOL" --account "$SPARKLE_KEY_ACCOUNT" "$ZIP_PATH" 2>&1 || true)"
-    fi
-    echo "$SIGN_OUTPUT"
-    ED_SIGNATURE="$(printf '%s\n' "$SIGN_OUTPUT" | sed -nE 's/.*sparkle:edSignature="([^"]+)".*/\1/p' | head -1)"
-    if [ -n "$ED_SIGNATURE" ]; then
-        printf '%s\n' "$ED_SIGNATURE" > "$SIGNATURE_PATH"
-    else
-        printf '%s\n' "$SIGN_OUTPUT" > "$SIGNATURE_PATH"
-    fi
-else
-    echo "WARNING: Sparkle sign_update tool was not found."
-fi
-
 echo ""
 echo "Build complete:"
 echo "  App: $APP_DIR"
-echo "  ZIP: $ZIP_PATH"
-if [ -f "$SIGNATURE_PATH" ]; then
-    echo "  Sig: $SIGNATURE_PATH"
-fi
 echo ""
 echo "Next: $SCRIPT_DIR/make-dmg.sh $APP_DIR"

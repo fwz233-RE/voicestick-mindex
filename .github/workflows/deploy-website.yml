@@ -36,57 +36,6 @@ jobs:
         run: npm ci
         working-directory: website
 
-      - name: Update appcast from latest release
-        run: |
-          set -euo pipefail
-          pages_host="${GITHUB_REPOSITORY_OWNER}.github.io"
-          pages_repo="${GITHUB_REPOSITORY#*/}"
-          curl -fsSL "https://${pages_host}/${pages_repo}/appcast.xml" \
-            -o website/public/appcast.xml || true
-          if ! tag="$(gh release view --json tagName -q .tagName 2>/dev/null)"; then
-            echo "No GitHub Release found; keeping existing appcast."
-            exit 0
-          fi
-          version="${tag#v}"
-          zip_asset="VoiceStick-${version}.zip"
-          sig_asset="VoiceStick-${version}.signature"
-          zip_length="$(gh release view "$tag" --json assets \
-            -q ".assets[] | select(.name == \"${zip_asset}\") | .size")"
-          if [ -z "${zip_length:-}" ]; then
-            echo "Release ${tag} has no ${zip_asset}; keeping existing appcast."
-            exit 0
-          fi
-          windows_asset="VoiceStickSetup-${version}.exe"
-          windows_length="$(gh release view "$tag" --json assets \
-            -q ".assets[] | select(.name == \"${windows_asset}\") | .size" || true)"
-          signature=""
-          if gh release download "$tag" --pattern "$sig_asset" --dir "$RUNNER_TEMP"; then
-            signature="$(cat "$RUNNER_TEMP/$sig_asset" | tr -d '\n')"
-          else
-            echo "Release ${tag} has no ${sig_asset}; keeping existing macOS appcast item."
-          fi
-          notes="$(gh release view "$tag" --json body -q .body)"
-          args=(
-            --version "$version" \
-            --release-notes "$notes"
-          )
-          if [ -n "${signature:-}" ]; then
-            args+=(
-              --zip-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${zip_asset}" \
-              --signature "$signature" \
-              --length "$zip_length" \
-            )
-          fi
-          if [ -n "${windows_length:-}" ]; then
-            args+=(
-              --windows-installer-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${windows_asset}" \
-              --windows-installer-length "$windows_length" \
-            )
-          fi
-          python3 scripts/update-appcast.py "${args[@]}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build website
         run: npm run build
         working-directory: website

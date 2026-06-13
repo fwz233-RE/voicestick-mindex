@@ -17,7 +17,7 @@ Current scope:
 - BLE advertisement scanning through C++/WinRT.
 - Core VoiceStick protocol parsing, Ogg Opus muxing, ASR binary framing, and coordinator state machine.
 - Text insertion through clipboard plus `SendInput`.
-- App self-update checks through WinSparkle, using the same appcast feed as the macOS Sparkle updater.
+- App update checks compare against the latest GitHub Release and open the release download page for manual reinstall.
 
 Full BLE GATT characteristic I/O is intentionally left for follow-up hardware validation work.
 
@@ -49,7 +49,7 @@ $env:SIGNING_SHA1 = "YOUR_CERT_THUMBPRINT"
 scripts\build-exe-installer.bat
 ```
 
-Upload `desktop\windows\build-installer-x64\VoiceStickSetup-<version>.exe` to the matching GitHub Release, then manually run the `Deploy Website to GitHub Pages` workflow. The setup installer is the WinSparkle update package; the appcast entry records the GitHub Release installer URL, byte length, version, Windows OS marker, and `/passive` installer argument.
+Upload `desktop\windows\build-installer-x64\VoiceStickSetup-<version>.exe` to the matching GitHub Release. The app update menu opens the latest Release page when a newer version is available.
 
 If an older `desktop\windows\build` directory was configured from the wrong Visual Studio environment, delete it or ignore it. Mixing an x86 CMake cache with x64 SDK libraries causes link errors.
 

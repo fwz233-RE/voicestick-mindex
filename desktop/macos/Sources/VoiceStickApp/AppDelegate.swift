@@ -1,5 +1,4 @@
 import AppKit
-import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusController: StatusController?
@@ -8,7 +7,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pairDeviceWindowController: PairDeviceWindowController?
     private var onboardingWindowController: OnboardingWindowController?
     private var firmwareUpdateWindowController: FirmwareUpdateWindowController?
-    private var updaterController: SPUStandardUpdaterController?
     private var dockIconWindowIDs = Set<ObjectIdentifier>()
     private var config = AppConfig.defaults
 
@@ -121,16 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController.onSetDeviceOverlayPosition = { [weak self] deviceID, position in
             self?.updateDeviceOverlayPosition(deviceID: deviceID, position: position)
         }
-        if Self.hasSparklePublicKey {
-            let updaterController = SPUStandardUpdaterController(
-                startingUpdater: true,
-                updaterDelegate: nil,
-                userDriverDelegate: nil
-            )
-            self.updaterController = updaterController
-            statusController.onCheckForUpdates = {
-                updaterController.updater.checkForUpdates()
-            }
+        statusController.onCheckForUpdates = { [weak self] in
+            self?.checkForApplicationUpdates()
         }
         statusController.setStatus(config.pairedDeviceIDs.isEmpty ? "需要配对 VoiceStick" : "就绪")
         coordinator.start()
@@ -248,11 +238,101 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private static var hasSparklePublicKey: Bool {
-        guard let publicKey = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String else {
-            return false
+    private func checkForApplicationUpdates() {
+        guard let latestReleaseURL = URL(string: "https://api.github.com/repos/fwz233-RE/voicestick-mindex/releases/latest") else {
+            openLatestReleasePage()
+            return
         }
-        return !publicKey.isEmpty && !publicKey.hasPrefix("REPLACE_WITH")
+
+        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+        var request = URLRequest(url: latestReleaseURL)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("VoiceStick", forHTTPHeaderField: "User-Agent")
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if error != nil || (response as? HTTPURLResponse)?.statusCode != 200 {
+                    self.showUpdateCheckFailed()
+                    return
+                }
+                guard
+                    let data,
+                    let payload = try? JSONDecoder().decode(GitHubLatestRelease.self, from: data),
+                    let latestVersion = Self.normalizedVersion(payload.tagName)
+                else {
+                    self.showUpdateCheckFailed()
+                    return
+                }
+                if Self.compareVersions(latestVersion, currentVersion) == .orderedDescending {
+                    self.showApplicationUpdateAvailable(latestVersion: latestVersion, currentVersion: currentVersion)
+                } else {
+                    self.showApplicationAlreadyUpToDate(currentVersion: currentVersion)
+                }
+            }
+        }.resume()
+    }
+
+    private func showApplicationUpdateAvailable(latestVersion: String, currentVersion: String) {
+        let alert = NSAlert()
+        alert.messageText = "发现新版本"
+        alert.informativeText = "当前版本为 \(currentVersion)，最新版本为 \(latestVersion)。请打开下载页面下载安装新的 DMG。"
+        alert.addButton(withTitle: "打开下载页面")
+        alert.addButton(withTitle: "稍后")
+        if alert.runModal() == .alertFirstButtonReturn {
+            openLatestReleasePage()
+        }
+    }
+
+    private func showApplicationAlreadyUpToDate(currentVersion: String) {
+        let alert = NSAlert()
+        alert.messageText = "已是最新版本"
+        alert.informativeText = "当前版本为 \(currentVersion)。"
+        alert.addButton(withTitle: "好")
+        alert.runModal()
+    }
+
+    private func showUpdateCheckFailed() {
+        let alert = NSAlert()
+        alert.messageText = "检查更新失败"
+        alert.informativeText = "无法连接到 GitHub Release。你可以直接打开下载页面查看最新版本。"
+        alert.addButton(withTitle: "打开下载页面")
+        alert.addButton(withTitle: "取消")
+        if alert.runModal() == .alertFirstButtonReturn {
+            openLatestReleasePage()
+        }
+    }
+
+    private func openLatestReleasePage() {
+        guard let url = URL(string: "https://github.com/fwz233-RE/voicestick-mindex/releases/latest") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    private static func normalizedVersion(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let version = trimmed.hasPrefix("v") || trimmed.hasPrefix("V") ? String(trimmed.dropFirst()) : trimmed
+        return version.isEmpty ? nil : version
+    }
+
+    private static func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
+        let leftParts = lhs.split(separator: ".").map { Int($0) ?? 0 }
+        let rightParts = rhs.split(separator: ".").map { Int($0) ?? 0 }
+        let count = max(leftParts.count, rightParts.count)
+        for index in 0..<count {
+            let left = index < leftParts.count ? leftParts[index] : 0
+            let right = index < rightParts.count ? rightParts[index] : 0
+            if left > right { return .orderedDescending }
+            if left < right { return .orderedAscending }
+        }
+        return .orderedSame
+    }
+
+    private struct GitHubLatestRelease: Decodable {
+        let tagName: String
+
+        enum CodingKeys: String, CodingKey {
+            case tagName = "tag_name"
+        }
     }
 
     private func showPairDeviceWindow() {

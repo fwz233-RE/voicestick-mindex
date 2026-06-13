@@ -4,9 +4,10 @@
 #include "ble_central_win.h"
 #include "log.h"
 #include "resource.h"
+#include "version.h"
 
 #include <Shellapi.h>
-#include <winsparkle.h>
+#include <winhttp.h>
 #include <winrt/base.h>
 
 #include <algorithm>
@@ -15,6 +16,8 @@
 #include <exception>
 #include <iterator>
 #include <optional>
+#include <string_view>
+#include <thread>
 
 namespace voicestick {
 
@@ -45,10 +48,6 @@ constexpr UINT kMenuTranslationBase = 3400;
 constexpr UINT kMenuTranslationEnd = 5799;
 constexpr UINT kMenuOptionsPerDevice = 6;
 constexpr UINT kMenuTranslationsPerDevice = 24;
-
-#ifndef VOICESTICK_APPCAST_URL
-#define VOICESTICK_APPCAST_URL "https://fwz233-re.github.io/voicestick-mindex/appcast.xml"
-#endif
 
 void LogLine(std::string_view message) {
     voicestick::LogApp(message);
@@ -151,13 +150,6 @@ int Win32App::Run() {
         RegisterTaskbarMessage();
         AddTrayIcon();
 
-        LogLine("Initializing WinSparkle");
-        win_sparkle_set_appcast_url(VOICESTICK_APPCAST_URL);
-        win_sparkle_set_automatic_check_for_updates(1);
-        win_sparkle_set_update_check_interval(86400);
-        win_sparkle_init();
-        LogLine("WinSparkle initialized");
-
         LogLine("Creating BLE coordinator");
         auto ble = std::make_unique<BleCentralWin>(config_.paired_device_ids, hwnd_);
         ble_central_ = ble.get();
@@ -186,7 +178,6 @@ int Win32App::Run() {
         if (!ShowOnboardingIfNeeded()) {
             LogLine("Onboarding did not complete; exiting");
             ShutdownAndQuit();
-            win_sparkle_cleanup();
             RemoveTrayIcon();
             return 0;
         }
@@ -197,7 +188,6 @@ int Win32App::Run() {
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
-        win_sparkle_cleanup();
         RemoveTrayIcon();
         return static_cast<int>(message.wParam);
     } catch (const winrt::hresult_error& error) {
@@ -439,7 +429,7 @@ LRESULT Win32App::HandleMessage(UINT message, WPARAM w_param, LPARAM l_param) {
             ShowPairDeviceDialog();
             return 0;
         case kMenuCheckAppUpdates:
-            win_sparkle_check_update_with_ui();
+            CheckApplicationUpdates();
             return 0;
         case kMenuHoldToTalk:
             config_.interaction_mode = InteractionMode::kHoldToTalk;
@@ -939,6 +929,142 @@ void Win32App::ShowSettings() {
         };
     }
     settings_dialog_->Show();
+}
+
+void Win32App::CheckApplicationUpdates() {
+    std::thread([this] {
+        std::string latest_version;
+        bool ok = false;
+        const std::wstring user_agent = L"VoiceStick/" + Utf16(VOICESTICK_VERSION_STR);
+        HINTERNET session = WinHttpOpen(user_agent.c_str(),
+                                       WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                       WINHTTP_NO_PROXY_NAME,
+                                       WINHTTP_NO_PROXY_BYPASS,
+                                       0);
+        if (session) {
+            HINTERNET connect = WinHttpConnect(session, L"api.github.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
+            if (connect) {
+                HINTERNET request = WinHttpOpenRequest(connect, L"GET",
+                    L"/repos/fwz233-RE/voicestick-mindex/releases/latest",
+                    nullptr,
+                    WINHTTP_NO_REFERER,
+                    WINHTTP_DEFAULT_ACCEPT_TYPES,
+                    WINHTTP_FLAG_SECURE);
+                if (request) {
+                    const wchar_t* headers = L"Accept: application/vnd.github+json\r\nUser-Agent: VoiceStick\r\n";
+                    if (WinHttpSendRequest(request,
+                                           headers,
+                                           static_cast<DWORD>(wcslen(headers)),
+                                           WINHTTP_NO_REQUEST_DATA,
+                                           0,
+                                           0,
+                                           0) &&
+                        WinHttpReceiveResponse(request, nullptr)) {
+                        DWORD status = 0;
+                        DWORD status_size = sizeof(status);
+                        WinHttpQueryHeaders(request,
+                                            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                                            WINHTTP_HEADER_NAME_BY_INDEX,
+                                            &status,
+                                            &status_size,
+                                            WINHTTP_NO_HEADER_INDEX);
+                        if (status == 200) {
+                            std::string body;
+                            DWORD available = 0;
+                            while (WinHttpQueryDataAvailable(request, &available) && available > 0) {
+                                std::string chunk(available, '\0');
+                                DWORD read = 0;
+                                if (!WinHttpReadData(request, chunk.data(), available, &read) || read == 0) break;
+                                chunk.resize(read);
+                                body += chunk;
+                            }
+                            constexpr std::string_view key = "\"tag_name\"";
+                            const auto key_pos = body.find(key);
+                            if (key_pos != std::string::npos) {
+                                const auto colon_pos = body.find(':', key_pos + key.size());
+                                const auto first_quote = body.find('"', colon_pos == std::string::npos ? key_pos : colon_pos);
+                                const auto second_quote = body.find('"', first_quote == std::string::npos ? first_quote : first_quote + 1);
+                                if (first_quote != std::string::npos && second_quote != std::string::npos) {
+                                    latest_version = body.substr(first_quote + 1, second_quote - first_quote - 1);
+                                    if (!latest_version.empty() && (latest_version[0] == 'v' || latest_version[0] == 'V')) {
+                                        latest_version.erase(latest_version.begin());
+                                    }
+                                    ok = !latest_version.empty();
+                                }
+                            }
+                        }
+                    }
+                    WinHttpCloseHandle(request);
+                }
+                WinHttpCloseHandle(connect);
+            }
+            WinHttpCloseHandle(session);
+        }
+
+        DispatchToUi([this, ok, latest_version] {
+            if (!ok) {
+                const int result = MessageBoxW(
+                    hwnd_,
+                    L"无法连接到 GitHub Release。是否直接打开下载页面？",
+                    L"检查更新失败",
+                    MB_ICONWARNING | MB_YESNO);
+                if (result == IDYES) OpenLatestReleasePage();
+                return;
+            }
+
+            const std::string current = VOICESTICK_VERSION_STR;
+            auto parse_version = [](const std::string& value) {
+                std::vector<int> parts;
+                std::string part;
+                for (char ch : value) {
+                    if (ch == '.') {
+                        parts.push_back(part.empty() ? 0 : std::stoi(part));
+                        part.clear();
+                    } else if (std::isdigit(static_cast<unsigned char>(ch))) {
+                        part.push_back(ch);
+                    }
+                }
+                parts.push_back(part.empty() ? 0 : std::stoi(part));
+                return parts;
+            };
+            const auto latest_parts = parse_version(latest_version);
+            const auto current_parts = parse_version(current);
+            const std::size_t count = std::max(latest_parts.size(), current_parts.size());
+            bool is_newer = false;
+            for (std::size_t index = 0; index < count; ++index) {
+                const int latest = index < latest_parts.size() ? latest_parts[index] : 0;
+                const int current_part = index < current_parts.size() ? current_parts[index] : 0;
+                if (latest > current_part) {
+                    is_newer = true;
+                    break;
+                }
+                if (latest < current_part) break;
+            }
+            if (is_newer) {
+                const std::wstring message = L"当前版本为 " + Utf16(current) +
+                    L"，最新版本为 " + Utf16(latest_version) +
+                    L"。是否打开下载页面？";
+                const int result = MessageBoxW(
+                    hwnd_,
+                    message.c_str(),
+                    L"发现新版本",
+                    MB_ICONINFORMATION | MB_YESNO);
+                if (result == IDYES) OpenLatestReleasePage();
+            } else {
+                const std::wstring message = L"当前版本为 " + Utf16(current) + L"。";
+                MessageBoxW(hwnd_, message.c_str(), L"已是最新版本", MB_ICONINFORMATION | MB_OK);
+            }
+        });
+    }).detach();
+}
+
+void Win32App::OpenLatestReleasePage() {
+    ShellExecuteW(hwnd_,
+                  L"open",
+                  L"https://github.com/fwz233-RE/voicestick-mindex/releases/latest",
+                  nullptr,
+                  nullptr,
+                  SW_SHOWNORMAL);
 }
 
 void Win32App::StartFirmwareUpdate(const std::string& device_id) {

@@ -67,6 +67,8 @@ private:
     bool ShowOnboarding();
     void ShowPairDeviceDialog();
     void ShowSettings();
+    void CheckApplicationUpdates();
+    void OpenLatestReleasePage();
     void SaveInputOptions();
     void SaveDeviceThemeColor(const std::string& device_id, OverlayThemeColor color);
     void SaveDeviceOverlayPosition(const std::string& device_id, OverlayPosition position);

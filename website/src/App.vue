@@ -358,7 +358,7 @@ async function flashFirmware() {
   <footer>
     <div class="section-inner footer-inner">
       <span>VoiceStick</span>
-      <a href="./appcast.xml">{{ t('footer.appcast') }}</a>
+      <a :href="releaseUrl">{{ t('footer.releases') }}</a>
     </div>
   </footer>
 </template>

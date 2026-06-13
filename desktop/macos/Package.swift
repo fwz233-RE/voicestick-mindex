@@ -11,7 +11,6 @@ let package = Package(
         .executable(name: "VoiceStickApp", targets: ["VoiceStickApp"])
     ],
     dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
         .package(url: "https://github.com/LebJe/TOMLKit.git", from: "0.6.0"),
     ],
     targets: [
@@ -19,7 +18,6 @@ let package = Package(
             name: "VoiceStickApp",
             dependencies: [
                 "CZlib",
-                .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "TOMLKit", package: "TOMLKit"),
             ],
             path: "Sources/VoiceStickApp",

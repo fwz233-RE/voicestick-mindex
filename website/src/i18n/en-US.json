@@ -85,11 +85,11 @@
   },
   "download": {
     "title": "Need another file?",
-    "body": "GitHub Releases also include checksums, appcast assets, and firmware images.",
+    "body": "GitHub Releases also include DMG checksums, Windows installers, and firmware images.",
     "cta": "View all release assets"
   },
   "footer": {
-    "appcast": "Appcast"
+    "releases": "GitHub Releases"
   },
   "language": {
     "zh": "中",

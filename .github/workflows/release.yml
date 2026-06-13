@@ -168,16 +168,12 @@ jobs:
       - name: Validate required release secrets
         run: |
           set -euo pipefail
-          test -n "${SPARKLE_PUBLIC_ED_KEY:-}" || (echo "::error ::Missing SPARKLE_PUBLIC_ED_KEY" && exit 1)
-          test -n "${SPARKLE_PRIVATE_ED_KEY:-}" || (echo "::error ::Missing SPARKLE_PRIVATE_ED_KEY" && exit 1)
           test -n "${MACOS_CERTIFICATE_P12:-}" || (echo "::error ::Missing MACOS_CERTIFICATE_P12" && exit 1)
           test -n "${MACOS_CERTIFICATE_PASSWORD:-}" || (echo "::error ::Missing MACOS_CERTIFICATE_PASSWORD" && exit 1)
           test -n "${APPLE_ID:-}" || (echo "::error ::Missing APPLE_ID" && exit 1)
           test -n "${APPLE_TEAM_ID:-}" || (echo "::error ::Missing APPLE_TEAM_ID" && exit 1)
           test -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" || (echo "::error ::Missing APPLE_APP_SPECIFIC_PASSWORD" && exit 1)
         env:
-          SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
-          SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -212,10 +208,7 @@ jobs:
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD"
 
-      - name: Build app and Sparkle ZIP
-        env:
-          SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
-          SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
+      - name: Build app
         run: scripts/build-macos.sh --release
 
       - name: Build notarized DMG
@@ -228,12 +221,7 @@ jobs:
           version="${{ steps.ver.outputs.version }}"
           mkdir -p dist
           cp "build/VoiceStick-${version}.dmg" dist/
-          cp "build/VoiceStick-${version}.zip" dist/
-          cp "build/VoiceStick-${version}.signature" dist/
           ( cd dist && shasum -a 256 "VoiceStick-${version}.dmg" > "VoiceStick-${version}.dmg.sha256" )
-          ( cd dist && shasum -a 256 "VoiceStick-${version}.zip" > "VoiceStick-${version}.zip.sha256" )
-          echo "zip_length=$(wc -c < "dist/VoiceStick-${version}.zip" | tr -d ' ')" >> "$GITHUB_OUTPUT"
-          echo "sparkle_signature=$(cat "dist/VoiceStick-${version}.signature" | tr -d '\n')" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -281,9 +269,6 @@ jobs:
           files: |
             dist/VoiceStick-${{ steps.ver.outputs.version }}.dmg
             dist/VoiceStick-${{ steps.ver.outputs.version }}.dmg.sha256
-            dist/VoiceStick-${{ steps.ver.outputs.version }}.zip
-            dist/VoiceStick-${{ steps.ver.outputs.version }}.zip.sha256
-            dist/VoiceStick-${{ steps.ver.outputs.version }}.signature
             dist/voicestick-firmware-sticks3-ota-${{ steps.ver.outputs.version }}.bin
             dist/voicestick-firmware-sticks3-ota-${{ steps.ver.outputs.version }}.bin.sha256
             dist/voicestick-firmware-sticks3-merged-${{ steps.ver.outputs.version }}.bin

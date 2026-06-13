@@ -45,10 +45,6 @@ if not exist "%BUILD_DIR%\VoiceStick.exe" (
     echo ERROR: VoiceStick.exe not found in build directory.
     exit /b 1
 )
-if not exist "%BUILD_DIR%\WinSparkle.dll" (
-    echo ERROR: WinSparkle.dll not found in build directory.
-    exit /b 1
-)
 
 if not defined SIGNING_SHA1 (
     if exist "%~dp0.signing_sha1" (
@@ -77,11 +73,6 @@ set SIGN_ARGS=/v /fd sha256 /sha1 %SIGNING_SHA1% /tr http://rfc3161timestamp.glo
 "%SIGNTOOL%" sign %SIGN_ARGS% "%BUILD_DIR%\VoiceStick.exe"
 if errorlevel 1 (
     echo ERROR: Signing VoiceStick.exe failed.
-    exit /b 1
-)
-"%SIGNTOOL%" sign %SIGN_ARGS% "%BUILD_DIR%\WinSparkle.dll"
-if errorlevel 1 (
-    echo ERROR: Signing WinSparkle.dll failed.
     exit /b 1
 )
 

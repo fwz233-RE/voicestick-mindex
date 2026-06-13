@@ -48,7 +48,7 @@ sign_code() {
     fi
 }
 
-sign_embedded_frameworks() {
+sign_embedded_code() {
     local app_dir="$1"
     local frameworks_dir="$app_dir/Contents/Frameworks"
     if [ ! -d "$frameworks_dir" ]; then
@@ -68,7 +68,7 @@ if [ "$CODESIGN_IDENTITY" != "-" ]; then
 else
     echo "Using ad-hoc signature."
 fi
-sign_embedded_frameworks "$APP_PATH"
+sign_embedded_code "$APP_PATH"
 sign_code "$APP_PATH" "$ENTITLEMENTS"
 
 echo "Verifying app signature..."
@@ -82,25 +82,6 @@ if [ "$CODESIGN_IDENTITY" != "-" ]; then
     fi
 else
     echo "Skipping entitlement check for ad-hoc signature."
-fi
-
-SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
-if [ -d "$SPARKLE_FRAMEWORK" ]; then
-    echo "Checking Sparkle signature..."
-    codesign --verify --strict --verbose=2 "$SPARKLE_FRAMEWORK"
-    if [ "$CODESIGN_IDENTITY" != "-" ]; then
-        APP_TEAM_ID="$(codesign -dv "$APP_PATH" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
-        SPARKLE_TEAM_ID="$(codesign -dv "$SPARKLE_FRAMEWORK" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
-        if [ -z "$APP_TEAM_ID" ] || [ "$APP_TEAM_ID" != "$SPARKLE_TEAM_ID" ]; then
-            echo "Error: Sparkle.framework Team ID does not match the app Team ID."
-            echo "       App Team ID: ${APP_TEAM_ID:-missing}"
-            echo "   Sparkle Team ID: ${SPARKLE_TEAM_ID:-missing}"
-            exit 1
-        fi
-    fi
-else
-    echo "Error: Sparkle.framework was not found in app bundle."
-    exit 1
 fi
 
 rm -rf "$STAGING_DIR" "$OUTPUT"

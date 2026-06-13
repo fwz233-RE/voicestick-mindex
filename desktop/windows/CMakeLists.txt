@@ -13,22 +13,6 @@ if(MSVC)
 endif()
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-include(FetchContent)
-
-FetchContent_Declare(
-    winsparkle
-    URL https://github.com/vslavik/winsparkle/releases/download/v0.9.2/WinSparkle-0.9.2.zip
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-FetchContent_MakeAvailable(winsparkle)
-
-add_library(winsparkle_lib SHARED IMPORTED GLOBAL)
-set_target_properties(winsparkle_lib PROPERTIES
-    IMPORTED_IMPLIB "${winsparkle_SOURCE_DIR}/x64/Release/WinSparkle.lib"
-    IMPORTED_LOCATION "${winsparkle_SOURCE_DIR}/x64/Release/WinSparkle.dll"
-    INTERFACE_INCLUDE_DIRECTORIES "${winsparkle_SOURCE_DIR}/include"
-)
-
 configure_file(src/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/version.h)
 
 add_library(voicestick_core
@@ -67,9 +51,6 @@ add_executable(VoiceStickApp WIN32
 )
 
 target_include_directories(VoiceStickApp PRIVATE resources ${CMAKE_CURRENT_BINARY_DIR})
-target_compile_definitions(VoiceStickApp PRIVATE
-    VOICESTICK_APPCAST_URL="https://fwz233-re.github.io/voicestick-mindex/appcast.xml"
-)
 
 set_target_properties(VoiceStickApp PROPERTIES OUTPUT_NAME VoiceStick)
 set_source_files_properties(resources/VoiceStick.rc PROPERTIES
@@ -78,7 +59,6 @@ set_source_files_properties(resources/VoiceStick.rc PROPERTIES
 
 target_link_libraries(VoiceStickApp PRIVATE
     voicestick_core
-    winsparkle_lib
     windowsapp
     runtimeobject
     shell32
@@ -91,12 +71,6 @@ target_link_libraries(VoiceStickApp PRIVATE
     comctl32
     ole32
     advapi32
-)
-
-add_custom_command(TARGET VoiceStickApp POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_PROPERTY:winsparkle_lib,IMPORTED_LOCATION>"
-        "$<TARGET_FILE_DIR:VoiceStickApp>"
 )
 
 add_executable(voicestick_windows_tests

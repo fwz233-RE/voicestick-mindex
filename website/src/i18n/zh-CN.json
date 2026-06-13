@@ -85,11 +85,11 @@
   },
   "download": {
     "title": "需要其他文件？",
-    "body": "GitHub Release 里还有校验和、appcast 文件和固件镜像。",
+    "body": "GitHub Release 里还有 DMG 校验和、Windows 安装包和固件镜像。",
     "cta": "查看全部发布文件"
   },
   "footer": {
-    "appcast": "Appcast"
+    "releases": "GitHub Releases"
   },
   "language": {
     "zh": "中",

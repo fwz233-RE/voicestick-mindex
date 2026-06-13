@@ -2,16 +2,11 @@
 
 VoiceStick releases have three moving parts:
 
-- macOS app: built, signed, notarized, and uploaded by GitHub Actions.
+- macOS app: built as DMG by GitHub Actions, then uploaded to GitHub Releases.
 - StickS3 firmware: built by GitHub Actions and uploaded to Aliyun OSS and GitHub Releases.
 - Windows app: built into a signed setup installer manually on the Windows signing machine, then uploaded to the matching GitHub Release.
 
-The Windows package is the special case because the signing certificate is local hardware or local machine state. The release process supports either order:
-
-- Build and sign Windows first, then let GitHub Actions publish macOS and firmware.
-- Publish macOS and firmware first, then build/sign Windows and upload it afterward.
-
-In both cases, finish by redeploying the website and verifying all update URLs.
+App update checks only compare the local version with the latest GitHub Release. When a newer version exists, the app opens the Release download page and the user reinstalls manually.
 
 ## Version Sources
 
@@ -22,15 +17,15 @@ VERSION
 firmware/version.txt
 ```
 
-`VERSION` is used by the desktop packaging scripts and the GitHub release workflow. `firmware/version.txt` is the firmware version reported by the device, so it must match the release version for OTA update detection to work correctly.
+`VERSION` is used by desktop packaging, website links, and GitHub workflows. `firmware/version.txt` is the firmware version reported by the device, so it must match the release version for OTA update detection.
 
-For release `0.2.4`, the tag must be:
+For release `0.3.5`, the tag must be:
 
 ```text
-v0.2.4
+v0.3.5
 ```
 
-The GitHub Actions release workflow validates that `v<VERSION>` matches the pushed tag.
+The GitHub Actions release workflow validates that `v<VERSION>` matches the pushed tag or manual input.
 
 ## Standard Flow
 
@@ -40,35 +35,46 @@ The GitHub Actions release workflow validates that `v<VERSION>` matches the push
 4. Push the release tag:
 
 ```sh
-git tag -a v0.2.4 -m "VoiceStick 0.2.4"
+git tag -a v0.3.5 -m "VoiceStick 0.3.5"
 git push origin main
-git push origin v0.2.4
+git push origin v0.3.5
 ```
 
-Pushing the tag runs `.github/workflows/release.yml`. That workflow builds:
+Pushing the tag runs `.github/workflows/release.yml`. That workflow builds and uploads:
 
 - `VoiceStick-<version>.dmg`
-- `VoiceStick-<version>.zip`
-- `VoiceStick-<version>.signature`
+- `VoiceStick-<version>.dmg.sha256`
 - `voicestick-firmware-sticks3-ota-<version>.bin`
+- `voicestick-firmware-sticks3-ota-<version>.bin.sha256`
 - `voicestick-firmware-sticks3-merged-<version>.bin`
-- firmware checksums and `manifest.json`
+- `voicestick-firmware-sticks3-merged-<version>.bin.sha256`
+- `manifest.json`
 
-It also uploads the firmware to Aliyun OSS under both:
+It also uploads firmware to Aliyun OSS under both:
 
 ```text
 voicestick/firmwares/<version>/
 voicestick/firmwares/latest/
 ```
 
-After publishing the GitHub Release, the workflow requests a website deploy so the appcast is refreshed.
+## Unsigned macOS Rebuild for an Existing Release
 
-## Windows First
+Use this when replacing only macOS DMG assets in an existing release:
 
-Use this flow when the Windows package has already been built and signed before the macOS/firmware release.
+```sh
+gh workflow run "Build Unsigned macOS" --ref main -f release_tag=v0.3.5 -f upload_release=true
+```
 
-1. Set the new version in `VERSION`.
-2. On the Windows signing machine, build and sign the setup installer:
+The workflow overwrites only:
+
+```text
+VoiceStick-0.3.5.dmg
+VoiceStick-0.3.5.dmg.sha256
+```
+
+## Windows Package
+
+On the Windows signing machine:
 
 ```bat
 scripts\build-exe-installer.bat
@@ -80,94 +86,42 @@ The output is:
 desktop\windows\build-installer-x64\VoiceStickSetup-<version>.exe
 ```
 
-3. Confirm `firmware/version.txt` also matches the new version.
-4. Commit, push `main`, and push the matching `v<version>` tag.
-5. Wait for the release workflow to finish successfully.
-6. Upload the signed setup installer to the same GitHub Release:
+Upload the signed setup installer to the matching GitHub Release:
 
 ```sh
-gh release upload v0.2.4 desktop/windows/build-installer-x64/VoiceStickSetup-0.2.4.exe --repo fwz233-RE/voicestick-mindex
+gh release upload v0.3.5 desktop/windows/build-installer-x64/VoiceStickSetup-0.3.5.exe --repo fwz233-RE/voicestick-mindex --clobber
 ```
 
-7. Re-run the website deploy workflow so the appcast includes the Windows setup installer:
+## Website Deploy
 
-```sh
-gh workflow run deploy-website.yml --repo fwz233-RE/voicestick-mindex --ref main
-```
-
-## macOS and Firmware First
-
-Use this flow when macOS and firmware should be published before the Windows package is ready.
-
-1. Update `VERSION` and `firmware/version.txt`.
-2. Commit, push `main`, and push the matching `v<version>` tag.
-3. Wait for the release workflow to publish macOS and firmware.
-4. Later, on the Windows signing machine, build and sign the setup installer:
-
-```bat
-scripts\build-exe-installer.bat
-```
-
-5. Upload the signed setup installer to the already published GitHub Release:
-
-```sh
-gh release upload v0.2.4 desktop/windows/build-installer-x64/VoiceStickSetup-0.2.4.exe --repo fwz233-RE/voicestick-mindex
-```
-
-6. Re-run the website deploy workflow:
+The website can be redeployed manually after Release assets change:
 
 ```sh
 gh workflow run deploy-website.yml --repo fwz233-RE/voicestick-mindex --ref main
 ```
-
-Until the setup installer is uploaded and the website deploy has run, Windows clients will not see the new Windows update in the appcast.
 
 ## Verification
 
-After every release, verify the appcast, firmware manifest, and actual package URLs.
-
-Stable update endpoints:
+Stable endpoints:
 
 ```text
-https://fwz233-re.github.io/voicestick-mindex/appcast.xml
+https://github.com/fwz233-RE/voicestick-mindex/releases/latest
 https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json
 ```
 
-For version `0.2.4`, the appcast should contain:
+For version `0.3.5`, verify these package URLs:
 
 ```text
-https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStickSetup-0.2.4.exe
-https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick-0.2.4.zip
+https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.3.5/VoiceStick-0.3.5.dmg
+https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.3.5/VoiceStick-0.3.5.dmg.sha256
+https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.3.5/VoiceStickSetup-0.3.5.exe
+https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.3.5/voicestick-firmware-sticks3-ota-0.3.5.bin
+https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.3.5/voicestick-firmware-sticks3-merged-0.3.5.bin
 ```
-
-The firmware manifest should contain:
-
-```text
-https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-ota-0.2.4.bin
-https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-merged-0.2.4.bin
-```
-
-Use `HEAD` requests or a browser to confirm every URL returns `200`.
-
-```powershell
-Invoke-WebRequest -UseBasicParsing https://fwz233-re.github.io/voicestick-mindex/appcast.xml
-Invoke-WebRequest -UseBasicParsing https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json
-
-Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStickSetup-0.2.4.exe
-Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick-0.2.4.zip
-Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-ota-0.2.4.bin
-Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-merged-0.2.4.bin
-```
-
-Also confirm these workflow runs are successful:
-
-- `Release Build`
-- `Deploy Website to GitHub Pages`
 
 The release is complete when:
 
-- macOS appcast entry points to the new Sparkle ZIP.
-- Windows appcast entry points to the new signed setup installer.
+- GitHub Release contains current DMG, DMG checksum, Windows installer, firmware images, firmware checksums, and manifest.
+- No obsolete macOS ZIP update assets remain in the current Release.
 - firmware `latest/manifest.json` reports the new version.
-- OTA and merged firmware URLs are reachable.
-- the GitHub Release contains all macOS, Windows, and firmware assets.
+- the website points users to GitHub Release downloads.
