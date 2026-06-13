@@ -503,7 +503,7 @@ struct AppConfig {
 
     var effectiveLLMAPIKey: String {
         let configured = llmAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        return configured.isEmpty ? effectiveAliyunAPIKey(configuredKey: aliyunAPIKey) : configured
+        return configured.isEmpty ? Self.effectiveAliyunAPIKey(configuredKey: aliyunAPIKey) : configured
     }
 
     var activeASRAPIKey: String {
@@ -513,7 +513,7 @@ struct AppConfig {
         case .volcengine:
             return volcengineAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         case .aliyun:
-            return effectiveAliyunAPIKey(configuredKey: aliyunAPIKey)
+            return Self.effectiveAliyunAPIKey(configuredKey: aliyunAPIKey)
         }
     }
 
