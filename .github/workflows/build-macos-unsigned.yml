@@ -71,7 +71,7 @@ jobs:
               "}",
               "",
           ]
-          output = Path("desktop/macos/Sources/VoiceStickApp/Private/EmbeddedAPIKey.swift")
+          output = Path("desktop/macos/Sources/VoiceStickApp/Private/PrivateEmbeddedAPIKey.swift")
           output.parent.mkdir(parents=True, exist_ok=True)
           output.write_text("\n".join(lines), encoding="utf-8")
           PY

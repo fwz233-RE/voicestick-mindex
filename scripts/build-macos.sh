@@ -24,7 +24,7 @@ CONFIG="${1:---release}"
 TARGET_ARCHS="arm64 x86_64"
 SPARKLE_KEY_ACCOUNT="${SPARKLE_KEY_ACCOUNT:-voicestick}"
 SWIFT_EXTRA_FLAGS=()
-if [ -f "$DESKTOP_DIR/Sources/VoiceStickApp/Private/EmbeddedAPIKey.swift" ]; then
+if [ -f "$DESKTOP_DIR/Sources/VoiceStickApp/Private/PrivateEmbeddedAPIKey.swift" ] || [ -f "$DESKTOP_DIR/Sources/VoiceStickApp/Private/EmbeddedAPIKey.swift" ]; then
     SWIFT_EXTRA_FLAGS+=("-Xswiftc" "-DPRIVATE_EMBEDDED_API_KEY")
 fi
 
