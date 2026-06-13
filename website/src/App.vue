@@ -11,9 +11,9 @@ const releaseUrl = 'https://github.com/fwz233-RE/voicestick-mindex/releases/late
 const githubUrl = 'https://github.com/fwz233-RE/voicestick-mindex'
 const releaseDownloadBase = `https://github.com/fwz233-RE/voicestick-mindex/releases/download/v${packageInfo.version}`
 const macDownloadUrl = `${releaseDownloadBase}/VoiceStick-${packageInfo.version}.dmg`
-const windowsDownloadUrl = `${releaseDownloadBase}/VoiceStick_${packageInfo.version}.msi`
-const defaultFirmwareUrl = `https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/voicestick-firmware-sticks3-merged-${packageInfo.version}.bin`
-const firmwareManifestUrl = import.meta.env.VITE_FIRMWARE_MANIFEST_URL || 'https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json'
+const windowsDownloadUrl = `${releaseDownloadBase}/VoiceStickSetup-${packageInfo.version}.exe`
+const defaultFirmwareUrl = `${releaseDownloadBase}/voicestick-firmware-sticks3-merged-${packageInfo.version}.bin`
+const firmwareManifestUrl = import.meta.env.VITE_FIRMWARE_MANIFEST_URL || ''
 const firmwareUrl = ref(import.meta.env.VITE_FIRMWARE_URL || defaultFirmwareUrl)
 const appResetSequence = 'D0|R1|W100|R0|W500|D0'
 

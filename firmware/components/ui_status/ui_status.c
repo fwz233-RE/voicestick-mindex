@@ -161,21 +161,7 @@ static void create_battery_ui(lv_obj_t *screen)
 
 static lv_color_t get_scene_bg_color(ui_status_icon_scene_t scene)
 {
-    switch (scene) {
-    case UI_STATUS_ICON_BOOT:
-    case UI_STATUS_ICON_PAIRING:
-        return lv_color_hex(0x000007);
-    case UI_STATUS_ICON_IDLE:
-        return lv_color_hex(0x000000);
-    case UI_STATUS_ICON_RESTING:
-        return lv_color_hex(0x020515);
-    case UI_STATUS_ICON_RECORDING:
-        return lv_color_hex(0x000003);
-    case UI_STATUS_ICON_TRANSCRIBING:
-        return lv_color_hex(0x000002);
-    case UI_STATUS_ICON_ERROR:
-        return lv_color_hex(0x000009);
-    }
+    (void)scene;
     return lv_color_hex(0x000000);
 }
 
