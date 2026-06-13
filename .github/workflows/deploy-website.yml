@@ -90,8 +90,6 @@ jobs:
       - name: Build website
         run: npm run build
         working-directory: website
-        env:
-          VITE_FIRMWARE_MANIFEST_URL: https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
