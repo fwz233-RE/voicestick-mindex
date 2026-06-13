@@ -118,7 +118,8 @@ if [ -n "$SPARKLE_FRAMEWORK" ]; then
     cp -R "$SPARKLE_FRAMEWORK" "$APP_DIR/Contents/Frameworks/"
     install_name_tool -add_rpath "@loader_path/../Frameworks" "$APP_DIR/Contents/MacOS/VoiceStickApp" 2>/dev/null || true
 else
-    echo "WARNING: Sparkle.framework was not found in SwiftPM artifacts."
+    echo "Error: Sparkle.framework was not found in SwiftPM artifacts."
+    exit 1
 fi
 
 CODESIGN_IDENTITY="-"
@@ -169,7 +170,7 @@ echo "Verifying app signature..."
 codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 echo "Checking app entitlements..."
-if ! codesign -d --entitlements - "$APP_DIR" 2>/dev/null | plutil -extract com.apple.security.cs.disable-library-validation raw - 2>/dev/null | grep -q '^1$'; then
+if ! codesign -d --entitlements :- "$APP_DIR" 2>/dev/null | plutil -extract com.apple.security.cs.disable-library-validation raw - 2>/dev/null | grep -q '^1$'; then
     echo "Error: app signature is missing com.apple.security.cs.disable-library-validation."
     exit 1
 fi
@@ -179,6 +180,19 @@ if [ -f "$SPARKLE_BINARY" ]; then
     echo "Checking Sparkle load path and signature..."
     otool -L "$APP_DIR/Contents/MacOS/VoiceStickApp" | grep -q '@rpath/Sparkle.framework/Versions/B/Sparkle'
     codesign --verify --strict --verbose=2 "$APP_DIR/Contents/Frameworks/Sparkle.framework"
+    if [ "$CODESIGN_IDENTITY" != "-" ]; then
+        APP_TEAM_ID="$(codesign -dv "$APP_DIR" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+        SPARKLE_TEAM_ID="$(codesign -dv "$APP_DIR/Contents/Frameworks/Sparkle.framework" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+        if [ -z "$APP_TEAM_ID" ] || [ "$APP_TEAM_ID" != "$SPARKLE_TEAM_ID" ]; then
+            echo "Error: Sparkle.framework Team ID does not match the app Team ID."
+            echo "       App Team ID: ${APP_TEAM_ID:-missing}"
+            echo "   Sparkle Team ID: ${SPARKLE_TEAM_ID:-missing}"
+            exit 1
+        fi
+    fi
+else
+    echo "Error: bundled Sparkle binary was not found: $SPARKLE_BINARY"
+    exit 1
 fi
 
 ZIP_PATH="$BUILD_DIR/VoiceStick-${VERSION}.zip"

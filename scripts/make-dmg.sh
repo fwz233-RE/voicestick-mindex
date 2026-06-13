@@ -75,7 +75,7 @@ echo "Verifying app signature..."
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
 echo "Checking app entitlements..."
-if ! codesign -d --entitlements - "$APP_PATH" 2>/dev/null | plutil -extract com.apple.security.cs.disable-library-validation raw - 2>/dev/null | grep -q '^1$'; then
+if ! codesign -d --entitlements :- "$APP_PATH" 2>/dev/null | plutil -extract com.apple.security.cs.disable-library-validation raw - 2>/dev/null | grep -q '^1$'; then
     echo "Error: app signature is missing com.apple.security.cs.disable-library-validation."
     exit 1
 fi
@@ -84,6 +84,19 @@ SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
 if [ -d "$SPARKLE_FRAMEWORK" ]; then
     echo "Checking Sparkle signature..."
     codesign --verify --strict --verbose=2 "$SPARKLE_FRAMEWORK"
+    if [ "$CODESIGN_IDENTITY" != "-" ]; then
+        APP_TEAM_ID="$(codesign -dv "$APP_PATH" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+        SPARKLE_TEAM_ID="$(codesign -dv "$SPARKLE_FRAMEWORK" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+        if [ -z "$APP_TEAM_ID" ] || [ "$APP_TEAM_ID" != "$SPARKLE_TEAM_ID" ]; then
+            echo "Error: Sparkle.framework Team ID does not match the app Team ID."
+            echo "       App Team ID: ${APP_TEAM_ID:-missing}"
+            echo "   Sparkle Team ID: ${SPARKLE_TEAM_ID:-missing}"
+            exit 1
+        fi
+    fi
+else
+    echo "Error: Sparkle.framework was not found in app bundle."
+    exit 1
 fi
 
 rm -rf "$STAGING_DIR" "$OUTPUT"
