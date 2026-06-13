@@ -88,7 +88,7 @@ std::wstring ApiKeySourceLabel(ApiKeySource source) {
     case ApiKeySource::kEnvironment:
         return L"使用环境变量 Key";
     case ApiKeySource::kEmbedded:
-        return L"使用内置 Key";
+        return L"未填写时将使用内置 Key";
     case ApiKeySource::kMissing:
     default:
         return L"未配置 Key";
@@ -525,7 +525,8 @@ void SettingsDialog::UpdateProviderVisibility() {
     else preview.aliyun_api_key = visible_api_key;
     preview.llm_api_key = Utf8(GetWindowText(llm_api_key_edit_));
     if (aliyun_key_status_label_) {
-        SetWindowTextW(aliyun_key_status_label_, ApiKeySourceLabel(preview.AliyunApiKeySource()).c_str());
+        SetWindowTextW(aliyun_key_status_label_,
+                       is_aliyun ? L"API Key 可留空，留空将使用内置 Key。" : L"");
     }
     if (llm_key_status_label_) {
         SetWindowTextW(llm_key_status_label_, ApiKeySourceLabel(preview.LlmApiKeySource()).c_str());

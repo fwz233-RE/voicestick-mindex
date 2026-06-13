@@ -88,6 +88,8 @@ final class ASRWebSocketClient: ASRClient {
     private var currentSessionID: String?
     private var queuedAudioChunks: [QueuedAudioChunk] = []
     private var latestSessionTranscript = ""
+    private var aliyunCompletedTranscript = ""
+    private var aliyunCurrentSentence = ""
     private var emittedDefiniteSegmentKeys: Set<String> = []
     private var sessionOptions = ASRSessionOptions()
     private var isAliyunProvider: Bool {
@@ -178,6 +180,7 @@ final class ASRWebSocketClient: ASRClient {
         currentSessionID = UUID().uuidString
         sessionOptions = options
         latestSessionTranscript = ""
+        resetAliyunTranscriptAccumulator()
         emittedDefiniteSegmentKeys.removeAll(keepingCapacity: true)
         queuedAudioChunks.removeAll(keepingCapacity: true)
         sessionState = .starting
@@ -309,6 +312,7 @@ final class ASRWebSocketClient: ASRClient {
 
         queuedAudioChunks.removeAll(keepingCapacity: true)
         latestSessionTranscript = ""
+        resetAliyunTranscriptAccumulator()
         emittedDefiniteSegmentKeys.removeAll(keepingCapacity: true)
         currentSessionID = nil
         sessionState = .idle
@@ -335,6 +339,7 @@ final class ASRWebSocketClient: ASRClient {
     private func failSession(_ message: String) {
         queuedAudioChunks.removeAll(keepingCapacity: true)
         latestSessionTranscript = ""
+        resetAliyunTranscriptAccumulator()
         emittedDefiniteSegmentKeys.removeAll(keepingCapacity: true)
         currentSessionID = nil
         sessionState = .idle
@@ -576,15 +581,17 @@ final class ASRWebSocketClient: ASRClient {
             sessionState = .streaming
             flushQueuedAudioChunks()
         case "result-generated":
-            guard let transcript = aliyunTranscript(from: object), !transcript.isEmpty else { return }
+            guard var transcript = aliyunTranscript(from: object), !transcript.isEmpty else { return }
+            transcript = applyAliyunTranscript(transcript, sentenceEnd: aliyunSentenceEnd(from: object))
             latestSessionTranscript = transcript
             DispatchQueue.main.async { [weak self] in
                 self?.onPartial?(transcript)
             }
         case "task-finished":
-            let finalText = latestSessionTranscript
+            let finalText = currentAliyunTranscript().isEmpty ? latestSessionTranscript : currentAliyunTranscript()
             currentSessionID = nil
             latestSessionTranscript = ""
+            resetAliyunTranscriptAccumulator()
             emittedDefiniteSegmentKeys.removeAll(keepingCapacity: true)
             queuedAudioChunks.removeAll(keepingCapacity: true)
             sessionState = .idle
@@ -610,6 +617,84 @@ final class ASRWebSocketClient: ASRClient {
             return nil
         }
         return sentence["text"] as? String
+    }
+
+    private func aliyunSentenceEnd(from object: [String: Any]) -> Bool {
+        guard
+            let payload = object["payload"] as? [String: Any],
+            let output = payload["output"] as? [String: Any],
+            let sentence = output["sentence"] as? [String: Any]
+        else {
+            return false
+        }
+        if let value = sentence["sentence_end"] as? Bool {
+            return value
+        }
+        if let value = sentence["sentence_end"] as? Int {
+            return value != 0
+        }
+        return false
+    }
+
+    private func applyAliyunTranscript(_ text: String, sentenceEnd: Bool) -> String {
+        let normalized = trimTranscript(text)
+        guard !normalized.isEmpty else { return currentAliyunTranscript() }
+
+        if sentenceEnd {
+            commitAliyunTranscript(normalized)
+            aliyunCurrentSentence = ""
+            return currentAliyunTranscript()
+        }
+
+        if !aliyunCompletedTranscript.isEmpty {
+            if aliyunCompletedTranscript.hasSuffix(normalized) {
+                aliyunCurrentSentence = ""
+                return aliyunCompletedTranscript
+            }
+            if normalized.hasPrefix(aliyunCompletedTranscript) {
+                let start = normalized.index(normalized.startIndex, offsetBy: aliyunCompletedTranscript.count)
+                aliyunCurrentSentence = trimTranscript(String(normalized[start...]))
+                return joinTranscript(aliyunCompletedTranscript, aliyunCurrentSentence)
+            }
+        }
+
+        aliyunCurrentSentence = normalized
+        return currentAliyunTranscript()
+    }
+
+    private func currentAliyunTranscript() -> String {
+        joinTranscript(aliyunCompletedTranscript, aliyunCurrentSentence)
+    }
+
+    private func commitAliyunTranscript(_ text: String) {
+        let normalized = trimTranscript(text)
+        guard !normalized.isEmpty else { return }
+        if !aliyunCompletedTranscript.isEmpty {
+            if aliyunCompletedTranscript.hasSuffix(normalized) {
+                return
+            }
+            if normalized.hasPrefix(aliyunCompletedTranscript) {
+                aliyunCompletedTranscript = normalized
+                return
+            }
+        }
+        aliyunCompletedTranscript = joinTranscript(aliyunCompletedTranscript, normalized)
+    }
+
+    private func resetAliyunTranscriptAccumulator() {
+        aliyunCompletedTranscript = ""
+        aliyunCurrentSentence = ""
+    }
+
+    private func trimTranscript(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func joinTranscript(_ lhs: String, _ rhs: String) -> String {
+        if lhs.isEmpty { return rhs }
+        if rhs.isEmpty { return lhs }
+        let needsSpace = lhs.last?.isASCIIAlphaNumber == true && rhs.first?.isASCIIAlphaNumber == true
+        return needsSpace ? "\(lhs) \(rhs)" : "\(lhs)\(rhs)"
     }
 
     private func handleBinaryResponse(_ data: Data) {
@@ -927,6 +1012,16 @@ final class ASRWebSocketClient: ASRClient {
     private func parseJSONPayload(_ text: String) -> [String: Any]? {
         guard let data = text.data(using: .utf8) else { return nil }
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+}
+
+private extension Character {
+    var isASCIIAlphaNumber: Bool {
+        unicodeScalars.count == 1 && unicodeScalars.allSatisfy { scalar in
+            (UInt32(48)...UInt32(57)).contains(scalar.value) ||
+                (UInt32(65)...UInt32(90)).contains(scalar.value) ||
+                (UInt32(97)...UInt32(122)).contains(scalar.value)
+        }
     }
 }
 

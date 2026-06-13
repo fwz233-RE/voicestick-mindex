@@ -1,17 +1,22 @@
 :root {
-  color-scheme: light;
-  --ink: #1b1d21;
-  --muted: #616773;
-  --line: #d9dde4;
-  --paper: #f7f8fa;
-  --panel: #ffffff;
-  --accent: #2997d8;
-  --accent-dark: #12608f;
+  color-scheme: dark;
+  --ink: #f8fafc;
+  --muted: #b8c0cc;
+  --line: #243142;
+  --paper: #000000;
+  --panel: #101722;
+  --accent: #38bdf8;
+  --accent-dark: #7dd3fc;
   --blue: #65c7f2;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--paper);
 }
 
 body {
@@ -33,7 +38,7 @@ button {
 .topbar {
   padding: 16px clamp(20px, 5vw, 64px);
   border-bottom: 1px solid var(--line);
-  background: rgba(247, 248, 250, 0.92);
+  background: rgba(0, 0, 0, 0.92);
   backdrop-filter: blur(14px);
   position: sticky;
   top: 0;
@@ -62,9 +67,9 @@ nav {
   height: 18px;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 50%, #ffffff 0 20%, transparent 21%),
-    conic-gradient(from 30deg, var(--accent), var(--blue), #111827, var(--accent));
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+    radial-gradient(circle at 50% 50%, #000000 0 20%, transparent 21%),
+    conic-gradient(from 30deg, var(--accent), var(--blue), #f8fafc, var(--accent));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 nav a {
@@ -153,11 +158,13 @@ h1 {
 }
 
 .button.mac {
-  background: var(--ink);
-  border-color: var(--ink);
+  color: #f8fafc;
+  background: #101722;
+  border-color: var(--line);
 }
 
 .button.windows {
+  color: #ffffff;
   background: #0078d4;
   border-color: #0078d4;
 }
@@ -180,7 +187,7 @@ h1 {
   width: min(78vw, 520px);
   aspect-ratio: 1;
   border-radius: 50%;
-  background: #e9f6fd;
+  background: #07111c;
   filter: blur(2px);
   z-index: -1;
 }
@@ -189,7 +196,7 @@ h1 {
   width: min(70vw, 390px);
   height: auto;
   display: block;
-  filter: drop-shadow(0 30px 46px rgba(27, 29, 33, 0.18));
+  filter: drop-shadow(0 30px 46px rgba(0, 0, 0, 0.64));
   -webkit-mask-image: radial-gradient(ellipse 48% 48% at 50% 50%, #000 64%, rgba(0, 0, 0, 0.86) 72%, rgba(0, 0, 0, 0.34) 84%, transparent 100%);
   mask-image: radial-gradient(ellipse 48% 48% at 50% 50%, #000 64%, rgba(0, 0, 0, 0.86) 72%, rgba(0, 0, 0, 0.34) 84%, transparent 100%);
 }
@@ -225,7 +232,7 @@ h2 {
 }
 
 .download-band {
-  background: #eef7fc;
+  background: #070b12;
 }
 
 .download-inner {
@@ -262,7 +269,7 @@ h2 {
 }
 
 .flasher {
-  background: #ffffff;
+  background: #000000;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -320,7 +327,7 @@ h2 {
   margin-top: 18px;
   overflow: hidden;
   border-radius: 999px;
-  background: #dfe5ec;
+  background: #1c2735;
 }
 
 .progress-track span {
@@ -345,7 +352,7 @@ h2 {
 }
 
 .browser-warning {
-  color: #9f2f24;
+  color: #fca5a5;
 }
 
 .flash-log {

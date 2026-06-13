@@ -278,7 +278,7 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate, CB
         stack.addArrangedSubview(row(label: "服务商", control: providerPopup))
         stack.addArrangedSubview(row(label: "API Key", control: apiKeyControl()))
         if selectedProvider() == .aliyun {
-            stack.addArrangedSubview(summaryLine("Key 状态", value: config.aliyunAPIKeySource.displayName))
+            stack.addArrangedSubview(summaryLine("提示", value: "API Key 可留空，留空将使用内置 Key。"))
         }
         if selectedProvider() == .volcengine {
             stack.addArrangedSubview(row(label: "Resource ID", control: resourcePopup))

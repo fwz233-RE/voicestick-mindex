@@ -97,6 +97,7 @@ bool OnboardingDialog::Show() {
     apply_trial_button_ = nullptr;
     resource_label_ = nullptr;
     resource_combo_ = nullptr;
+    aliyun_key_hint_label_ = nullptr;
     back_button_ = nullptr;
     next_button_ = nullptr;
     return result == IDOK;
@@ -220,6 +221,7 @@ void OnboardingDialog::DestroyControls() {
     apply_trial_button_ = nullptr;
     resource_label_ = nullptr;
     resource_combo_ = nullptr;
+    aliyun_key_hint_label_ = nullptr;
     back_button_ = nullptr;
     next_button_ = nullptr;
     if (ui_font_) {
@@ -310,11 +312,15 @@ void OnboardingDialog::BuildAsrStep(int x, int y, int w) {
                                        y + Dp(84), Dp(108), Dp(24),
                                        kIdApplyTrial, instance_);
     controls_.push_back(apply_trial_button_);
+    aliyun_key_hint_label_ = CreateStatic(hwnd_, L"API Key 可留空，留空将使用内置 Key。",
+                                          x + Dp(104), y + Dp(112), w - Dp(104),
+                                          Dp(20), instance_);
+    controls_.push_back(aliyun_key_hint_label_);
 
-    resource_label_ = CreateStatic(hwnd_, L"资源：", x, y + Dp(128), Dp(92), Dp(22),
+    resource_label_ = CreateStatic(hwnd_, L"资源：", x, y + Dp(142), Dp(92), Dp(22),
                                    instance_, SS_RIGHT);
     controls_.push_back(resource_label_);
-    resource_combo_ = CreateCombo(hwnd_, x + Dp(104), y + Dp(124), w - Dp(104),
+    resource_combo_ = CreateCombo(hwnd_, x + Dp(104), y + Dp(138), w - Dp(104),
                                   Dp(200), kIdResourceCombo, instance_);
     controls_.push_back(resource_combo_);
     for (const auto& id : AppConfig::SupportedResourceIds()) {
@@ -380,9 +386,11 @@ void OnboardingDialog::UpdateProviderVisibility() {
     const int provider_idx = static_cast<int>(SendMessageW(provider_combo_, CB_GETCURSEL, 0, 0));
     const bool is_cloud = provider_idx == 0;
     const bool is_volcengine = provider_idx == 1;
+    const bool is_aliyun = provider_idx == 2;
     const bool api_key_empty = GetText(api_key_edit_).empty();
     ShowWindow(resource_label_, is_volcengine ? SW_SHOW : SW_HIDE);
     ShowWindow(resource_combo_, is_volcengine ? SW_SHOW : SW_HIDE);
+    ShowWindow(aliyun_key_hint_label_, is_aliyun ? SW_SHOW : SW_HIDE);
     ShowWindow(apply_trial_button_, is_cloud && api_key_empty ? SW_SHOW : SW_HIDE);
     const int full_w = Dp(430 - 104);
     const int api_w = is_cloud && api_key_empty ? full_w - Dp(116) : full_w;

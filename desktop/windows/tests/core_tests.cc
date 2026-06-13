@@ -377,6 +377,19 @@ void TestAsrProtocol() {
     auto definite = AsrProtocol::ExtractNewDefiniteSegments(segment_json, &emitted);
     assert(definite.size() == 1);
     assert(AsrProtocol::ExtractNewDefiniteSegments(segment_json, &emitted).empty());
+
+    AsrTranscriptAccumulator accumulator;
+    assert(accumulator.Apply("今天我想", false) == "今天我想");
+    assert(accumulator.Apply("今天我想测试一下", false) == "今天我想测试一下");
+    assert(accumulator.Apply("今天我想测试一下。", true) == "今天我想测试一下。");
+    assert(accumulator.Apply("后面还有", false) == "今天我想测试一下。后面还有");
+    assert(accumulator.Apply("后面还有很多话。", true) == "今天我想测试一下。后面还有很多话。");
+    assert(accumulator.CurrentText() == "今天我想测试一下。后面还有很多话。");
+
+    accumulator.Reset();
+    assert(accumulator.Apply("hello", true) == "hello");
+    assert(accumulator.Apply("world", false) == "hello world");
+    assert(accumulator.Apply("world", true) == "hello world");
 }
 
 void TestAppConfig() {

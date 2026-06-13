@@ -26,8 +26,8 @@ def main() -> None:
     parser.add_argument("--zip-url", required=True)
     parser.add_argument("--signature", required=True)
     parser.add_argument("--length", required=True, type=int)
-    parser.add_argument("--msi-url")
-    parser.add_argument("--msi-length", type=int)
+    parser.add_argument("--windows-installer-url")
+    parser.add_argument("--windows-installer-length", type=int)
     parser.add_argument("--output", default="website/public/appcast.xml")
     parser.add_argument("--release-notes", default="VoiceStick macOS release.")
     args = parser.parse_args()
@@ -36,8 +36,8 @@ def main() -> None:
         sys.exit("Error: --length must be greater than 0 for Sparkle updates.")
     if "REPLACE_WITH" in args.signature or not args.signature.strip():
         sys.exit("Error: --signature must be a real Sparkle EdDSA signature.")
-    if args.msi_url and (not args.msi_length or args.msi_length <= 0):
-        sys.exit("Error: --msi-length must be greater than 0 when --msi-url is set.")
+    if args.windows_installer_url and (not args.windows_installer_length or args.windows_installer_length <= 0):
+        sys.exit("Error: --windows-installer-length must be greater than 0 when --windows-installer-url is set.")
 
     notes = "".join(f"<li>{html.escape(line)}</li>" for line in args.release_notes.splitlines() if line.strip())
     if not notes:
@@ -46,7 +46,7 @@ def main() -> None:
     pub_date = email.utils.format_datetime(datetime.now(timezone.utc))
     output_path = Path(args.output)
     windows_item = ""
-    if args.msi_url and args.msi_length:
+    if args.windows_installer_url and args.windows_installer_length:
         windows_item = f"""    <item>
       <title>Version {html.escape(args.version)}</title>
       <description><![CDATA[
@@ -56,12 +56,12 @@ def main() -> None:
       ]]></description>
       <pubDate>{pub_date}</pubDate>
       <enclosure
-        url="{html.escape(args.msi_url)}"
+        url="{html.escape(args.windows_installer_url)}"
         sparkle:os="windows"
         sparkle:version="{html.escape(args.version)}"
         sparkle:shortVersionString="{html.escape(args.version)}"
         sparkle:installerArguments="/passive"
-        length="{args.msi_length}"
+        length="{args.windows_installer_length}"
         type="application/octet-stream"
       />
     </item>

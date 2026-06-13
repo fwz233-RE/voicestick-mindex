@@ -80,6 +80,7 @@ private:
     SessionState session_state_ = SessionState::kIdle;
     std::string current_session_id_;
     std::string latest_session_transcript_;
+    AsrTranscriptAccumulator aliyun_transcript_accumulator_;
     std::set<std::string> emitted_definite_segment_keys_;
     AsrSessionOptions session_options_;
     HINTERNET websocket_ = nullptr;

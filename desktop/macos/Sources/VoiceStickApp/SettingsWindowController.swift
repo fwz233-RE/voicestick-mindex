@@ -15,7 +15,7 @@ final class SettingsWindowController: NSWindowController {
     private let debugAudioButton = NSButton(checkboxWithTitle: "保存调试音频文件", target: nil, action: nil)
     private let debugAudioDirectoryField = NSTextField()
     private let statusLabel = NSTextField(labelWithString: "")
-    private var currentDisplayedProvider: ASRProvider = .volcengine
+    private var currentDisplayedProvider: ASRProvider = .aliyun
     private var resourceRow: NSStackView?
     var onConfigChanged: ((AppConfig) -> Void)?
 
@@ -381,7 +381,7 @@ final class SettingsWindowController: NSWindowController {
             preview.aliyunAPIKey = apiKeyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         preview.llmAPIKey = llmAPIKeyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        aliyunAPIKeyStatusLabel.stringValue = currentDisplayedProvider == .aliyun ? preview.aliyunAPIKeySource.displayName : ""
+        aliyunAPIKeyStatusLabel.stringValue = currentDisplayedProvider == .aliyun ? "API Key 可留空，留空将使用内置 Key。" : ""
         llmAPIKeyStatusLabel.stringValue = preview.llmAPIKeySource.displayName
     }
 

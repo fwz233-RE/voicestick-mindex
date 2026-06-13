@@ -6,6 +6,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace voicestick {
@@ -59,6 +60,24 @@ struct AsrSegment {
     bool definite = false;
     std::optional<int> start_time;
     std::optional<int> end_time;
+};
+
+class AsrTranscriptAccumulator {
+public:
+    void Reset();
+    std::string Apply(std::string_view text, bool sentence_end);
+    std::string CurrentText() const;
+
+private:
+    static std::string Trim(std::string_view text);
+    static std::string Join(std::string_view lhs, std::string_view rhs);
+    static bool EndsWith(std::string_view text, std::string_view suffix);
+    static bool StartsWith(std::string_view text, std::string_view prefix);
+    static bool ShouldInsertSpace(char lhs, char rhs);
+    void Commit(std::string_view text);
+
+    std::string completed_transcript_;
+    std::string current_sentence_;
 };
 
 class AsrProtocol {

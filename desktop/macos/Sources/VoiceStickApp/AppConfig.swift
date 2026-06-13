@@ -32,7 +32,7 @@ enum APIKeySource {
         case .environment:
             return "使用环境变量 Key"
         case .embedded:
-            return "使用内置 Key"
+            return "未填写时将使用内置 Key"
         case .missing:
             return "未配置 Key"
         }

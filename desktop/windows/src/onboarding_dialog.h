@@ -66,6 +66,7 @@ private:
     HWND apply_trial_button_ = nullptr;
     HWND resource_label_ = nullptr;
     HWND resource_combo_ = nullptr;
+    HWND aliyun_key_hint_label_ = nullptr;
     HWND back_button_ = nullptr;
     HWND next_button_ = nullptr;
 

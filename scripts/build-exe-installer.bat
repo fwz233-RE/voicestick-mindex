@@ -3,18 +3,17 @@ setlocal enabledelayedexpansion
 
 set PROJECT_DIR=%~dp0..
 set WINDOWS_DIR=%PROJECT_DIR%\desktop\windows
-set BUILD_DIR=%WINDOWS_DIR%\build-msi-x64
+set BUILD_DIR=%WINDOWS_DIR%\build-installer-x64
+set INSTALLER_SCRIPT=%WINDOWS_DIR%\installer\VoiceStick.iss
 
-:: Read version from the single-source-of-truth VERSION file
 set /p VERSION=<"%PROJECT_DIR%\VERSION"
 
 if "%VERSION%"=="" (
     echo ERROR: Could not read version from %PROJECT_DIR%\VERSION
     exit /b 1
 )
-echo Building VoiceStick v%VERSION% MSI installer...
+echo Building VoiceStick v%VERSION% setup installer...
 
-:: Initialize VS build environment (cmake, ninja, cl, rc, etc.)
 set VSWHERE="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 for /f "delims=" %%i in ('%VSWHERE% -latest -prerelease -property installationPath') do set VS_PATH=%%i
 if not exist "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" (
@@ -28,7 +27,6 @@ if not exist "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" (
 )
 call "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul 2>&1
 
-:: Step 1: CMake configure + build (RelWithDebInfo)
 echo.
 echo [1/4] CMake RelWithDebInfo build...
 cmake -S "%WINDOWS_DIR%" -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -52,9 +50,6 @@ if not exist "%BUILD_DIR%\WinSparkle.dll" (
     exit /b 1
 )
 
-:: Step 2: Sign exe files (signtool from Windows SDK, PATH, or local signing folder)
-:: Certificate thumbprint: set env SIGNING_SHA1, or create scripts\.signing_sha1
-:: with one line containing the certificate thumbprint (SHA1).
 if not defined SIGNING_SHA1 (
     if exist "%~dp0.signing_sha1" (
         for /f "usebackq delims=" %%i in ("%~dp0.signing_sha1") do set "SIGNING_SHA1=%%i"
@@ -66,15 +61,14 @@ if not defined SIGNING_SHA1 (
 )
 
 if defined SIGNTOOL_PATH (
-    set SIGNTOOL=%SIGNTOOL_PATH%
+    set "SIGNTOOL=%SIGNTOOL_PATH%"
 ) else (
-    set SIGNTOOL=signtool
+    set "SIGNTOOL=signtool"
 )
-where "%SIGNTOOL%" >nul 2>&1
+where %SIGNTOOL% >nul 2>&1
 if errorlevel 1 (
-    if exist "D:\Workspace\???\signtool.exe" (
-        set SIGNTOOL=D:\Workspace\???\signtool.exe
-    )
+    echo ERROR: signtool not found. Set SIGNTOOL_PATH or add signtool to PATH.
+    exit /b 1
 )
 
 echo.
@@ -91,39 +85,47 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: Step 3: Build MSI with WiX
-echo.
-echo [3/4] Building MSI with WiX...
-if not defined WIX_PATH (
-    set WIX_PATH=C:\Program Files\WiX Toolset v6.0\bin\wix.exe
+if defined ISCC_PATH (
+    set "ISCC=%ISCC_PATH%"
+) else (
+    set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 )
-if not exist "%WIX_PATH%" (
-    echo ERROR: WiX not found at %WIX_PATH%
-    exit /b 1
+if not exist "%ISCC%" (
+    if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" (
+        set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+    )
 )
-"%WIX_PATH%" build "%WINDOWS_DIR%\installer\VoiceStick.wxs" ^
-    "%WINDOWS_DIR%\installer\zh-CN.wxl" ^
-    -arch x64 ^
-    -culture zh-CN ^
-    -ext WixToolset.UI.wixext ^
-    -ext WixToolset.Util.wixext ^
-    -d ProductVersion=%VERSION% ^
-    -d BuildDir=%BUILD_DIR% ^
-    -d ProjectDir=%PROJECT_DIR% ^
-    -o "%BUILD_DIR%\VoiceStick_%VERSION%.msi"
-if errorlevel 1 (
-    echo ERROR: WiX build failed.
-    exit /b 1
+if not exist "%ISCC%" (
+    if exist "%LocalAppData%\Programs\Inno Setup 6\ISCC.exe" (
+        set "ISCC=%LocalAppData%\Programs\Inno Setup 6\ISCC.exe"
+    )
 )
-
-:: Step 4: Sign MSI installer
-echo.
-echo [4/4] Signing MSI...
-"%SIGNTOOL%" sign %SIGN_ARGS% "%BUILD_DIR%\VoiceStick_%VERSION%.msi"
-if errorlevel 1 (
-    echo ERROR: Signing MSI failed.
+if not exist "%ISCC%" (
+    echo ERROR: Inno Setup compiler not found. Set ISCC_PATH or install Inno Setup 6.
     exit /b 1
 )
 
 echo.
-echo Success: %BUILD_DIR%\VoiceStick_%VERSION%.msi
+echo [3/4] Building setup.exe with Inno Setup...
+"%ISCC%" /DMyAppVersion=%VERSION% /DBuildDir="%BUILD_DIR%" /DProjectDir="%PROJECT_DIR%" "%INSTALLER_SCRIPT%"
+if errorlevel 1 (
+    echo ERROR: Inno Setup build failed.
+    exit /b 1
+)
+
+set INSTALLER=%BUILD_DIR%\VoiceStickSetup-%VERSION%.exe
+if not exist "%INSTALLER%" (
+    echo ERROR: Installer not found: %INSTALLER%
+    exit /b 1
+)
+
+echo.
+echo [4/4] Signing setup installer...
+"%SIGNTOOL%" sign %SIGN_ARGS% "%INSTALLER%"
+if errorlevel 1 (
+    echo ERROR: Signing setup installer failed.
+    exit /b 1
+)
+
+echo.
+echo Success: %INSTALLER%

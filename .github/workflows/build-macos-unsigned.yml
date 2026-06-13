@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag to upload assets to, for example v0.3.4. Must match VERSION."
+        description: "Release tag to upload assets to, for example v0.3.5. Must match VERSION."
         required: true
-        default: "v0.3.4"
+        default: "v0.3.5"
       upload_release:
         description: "Upload macOS assets to the GitHub Release"
         required: true

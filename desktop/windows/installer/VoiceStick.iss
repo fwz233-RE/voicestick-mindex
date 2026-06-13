@@ -5,7 +5,7 @@
 #define MyAppVersion "0.0.0"
 #endif
 #ifndef BuildDir
-#define BuildDir "..\build-msi-x64"
+#define BuildDir "..\build-installer-x64"
 #endif
 #ifndef ProjectDir
 #define ProjectDir "..\..\.."

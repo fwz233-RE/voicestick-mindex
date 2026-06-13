@@ -117,6 +117,17 @@ std::string AliyunSentenceText(std::string_view json) {
     return text;
 }
 
+bool AliyunSentenceEnd(std::string_view json) {
+    const std::string needle = "\"sentence_end\"";
+    const auto key_pos = json.find(needle);
+    if (key_pos == std::string_view::npos) return false;
+    const auto colon = json.find(':', key_pos + needle.size());
+    if (colon == std::string_view::npos) return false;
+    auto value_pos = json.find_first_not_of(" \t\r\n", colon + 1);
+    if (value_pos == std::string_view::npos) return false;
+    return json.substr(value_pos, 4) == "true" || json.substr(value_pos, 1) == "1";
+}
+
 std::string AliyunErrorMessage(std::string_view json) {
     auto message = JsonStringValue(json, "error_message");
     if (!message.empty()) return message;
@@ -169,6 +180,7 @@ bool AsrClientWin::Start(AsrSessionOptions options) {
         session_options_.hotwords = config_.asr_hotwords;
     }
     emitted_definite_segment_keys_.clear();
+    aliyun_transcript_accumulator_.Reset();
     return StartReusableSession();
 }
 
@@ -183,6 +195,7 @@ bool AsrClientWin::StartReusableSession() {
         }
         current_session_id_ = GenerateSessionId();
         latest_session_transcript_.clear();
+        aliyun_transcript_accumulator_.Reset();
         queued_audio_chunks_.clear();
         session_state_ = SessionState::kStarting;
         if (connection_state_ == ConnectionState::kReady && websocket_) {
@@ -237,6 +250,7 @@ void AsrClientWin::CancelReusableSession() {
         std::lock_guard lock(mutex_);
         queued_audio_chunks_.clear();
         latest_session_transcript_.clear();
+        aliyun_transcript_accumulator_.Reset();
         emitted_definite_segment_keys_.clear();
         should_send_cancel = session_state_ == SessionState::kStarting ||
                              session_state_ == SessionState::kStreaming ||
@@ -283,6 +297,7 @@ void AsrClientWin::ShutdownReusableConnection() {
         queued_audio_chunks_.clear();
         current_session_id_.clear();
         latest_session_transcript_.clear();
+        aliyun_transcript_accumulator_.Reset();
         emitted_definite_segment_keys_.clear();
         session_state_ = SessionState::kIdle;
         connection_state_ = ConnectionState::kDisconnected;
@@ -573,6 +588,7 @@ void AsrClientWin::HandleReusableResponse(std::span<const std::uint8_t> data, HI
                 response.payload_text, &emitted_definite_segment_keys_);
             current_session_id_.clear();
             latest_session_transcript_.clear();
+            aliyun_transcript_accumulator_.Reset();
             emitted_definite_segment_keys_.clear();
             queued_audio_chunks_.clear();
             session_state_ = SessionState::kIdle;
@@ -669,6 +685,7 @@ void AsrClientWin::FailReusableSession(const std::string& message) {
         queued_audio_chunks_.clear();
         current_session_id_.clear();
         latest_session_transcript_.clear();
+        aliyun_transcript_accumulator_.Reset();
         session_state_ = SessionState::kIdle;
         connection_state_ = ConnectionState::kDisconnected;
         websocket_ = nullptr;
@@ -695,6 +712,7 @@ bool AsrClientWin::SendReusableFrameOrFail(const ByteVector& frame, const std::s
         queued_audio_chunks_.clear();
         current_session_id_.clear();
         latest_session_transcript_.clear();
+        aliyun_transcript_accumulator_.Reset();
         session_state_ = SessionState::kIdle;
         connection_state_ = ConnectionState::kDisconnected;
         websocket_ = nullptr;
@@ -723,6 +741,7 @@ bool AsrClientWin::SendAliyunTextFrameOrFail(const std::string& text, const std:
         queued_audio_chunks_.clear();
         current_session_id_.clear();
         latest_session_transcript_.clear();
+        aliyun_transcript_accumulator_.Reset();
         session_state_ = SessionState::kIdle;
         connection_state_ = ConnectionState::kDisconnected;
         websocket_ = nullptr;
@@ -758,8 +777,10 @@ void AsrClientWin::HandleAliyunResponse(std::span<const std::uint8_t> data) {
     if (event == "result-generated") {
         auto transcript = AliyunSentenceText(text);
         if (transcript.empty()) return;
+        const auto sentence_end = AliyunSentenceEnd(text);
         {
             std::lock_guard lock(mutex_);
+            transcript = aliyun_transcript_accumulator_.Apply(transcript, sentence_end);
             latest_session_transcript_ = transcript;
         }
         if (on_partial) on_partial(transcript);
@@ -769,9 +790,11 @@ void AsrClientWin::HandleAliyunResponse(std::span<const std::uint8_t> data) {
         std::string final_text;
         {
             std::lock_guard lock(mutex_);
-            final_text = latest_session_transcript_;
+            final_text = aliyun_transcript_accumulator_.CurrentText();
+            if (final_text.empty()) final_text = latest_session_transcript_;
             current_session_id_.clear();
             latest_session_transcript_.clear();
+            aliyun_transcript_accumulator_.Reset();
             emitted_definite_segment_keys_.clear();
             queued_audio_chunks_.clear();
             session_state_ = SessionState::kIdle;

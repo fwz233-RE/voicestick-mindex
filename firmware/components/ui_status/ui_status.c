@@ -159,6 +159,26 @@ static void create_battery_ui(lv_obj_t *screen)
     lv_obj_align(s_battery_label, LV_ALIGN_TOP_RIGHT, 0, 4);
 }
 
+static lv_color_t get_scene_bg_color(ui_status_icon_scene_t scene)
+{
+    switch (scene) {
+    case UI_STATUS_ICON_BOOT:
+    case UI_STATUS_ICON_PAIRING:
+        return lv_color_hex(0x000007);
+    case UI_STATUS_ICON_IDLE:
+        return lv_color_hex(0x000000);
+    case UI_STATUS_ICON_RESTING:
+        return lv_color_hex(0x020515);
+    case UI_STATUS_ICON_RECORDING:
+        return lv_color_hex(0x000003);
+    case UI_STATUS_ICON_TRANSCRIBING:
+        return lv_color_hex(0x000002);
+    case UI_STATUS_ICON_ERROR:
+        return lv_color_hex(0x000009);
+    }
+    return lv_color_hex(0x000000);
+}
+
 static void render_scene_locked(ui_status_icon_scene_t scene, const char *status, const char *hint)
 {
     if (!s_ready) {
@@ -179,15 +199,14 @@ static void render_scene_locked(ui_status_icon_scene_t scene, const char *status
         lv_obj_align(s_hint_label, LV_ALIGN_BOTTOM_MID, 0, -10);
     }
 
-    const bool resting = scene == UI_STATUS_ICON_RESTING;
     const bool pairing = scene == UI_STATUS_ICON_PAIRING || scene == UI_STATUS_ICON_BOOT;
     const bool error = scene == UI_STATUS_ICON_ERROR;
-    lv_color_t bg = resting ? lv_color_hex(0x1b2430) : lv_color_hex(0xfff7ed);
-    lv_color_t text = resting ? lv_color_hex(0xe8eef7) : lv_color_hex(0x3f3440);
-    lv_color_t muted = resting ? lv_color_hex(0xa8bad2) : lv_color_hex(0x7f7180);
-    lv_color_t hint_color = resting ? lv_color_hex(0xdfe9f8) : muted;
+    lv_color_t bg = get_scene_bg_color(scene);
+    lv_color_t text = lv_color_hex(0xffffff);
+    lv_color_t muted = lv_color_hex(0xb8c0cc);
+    lv_color_t hint_color = muted;
     lv_color_t ble = error ? lv_color_hex(0xf97373) :
-                     pairing ? lv_color_hex(0x8fb8ff) :
+                     pairing ? lv_color_hex(0x38bdf8) :
                      lv_color_hex(0x55c98a);
 
     lv_obj_set_style_bg_color(s_screen, bg, 0);
@@ -215,8 +234,8 @@ static void render_current_locked(void)
 static void create_status_ui(void)
 {
     s_screen = lv_display_get_screen_active(s_display);
-    lv_obj_set_style_bg_color(s_screen, lv_color_hex(0xfff7ed), 0);
-    lv_obj_set_style_text_color(s_screen, lv_color_hex(0x3f3440), 0);
+    lv_obj_set_style_bg_color(s_screen, get_scene_bg_color(UI_STATUS_ICON_BOOT), 0);
+    lv_obj_set_style_text_color(s_screen, lv_color_hex(0xffffff), 0);
     lv_obj_set_style_pad_all(s_screen, 8, 0);
 
     s_top_label = lv_label_create(s_screen);

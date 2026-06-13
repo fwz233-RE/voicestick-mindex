@@ -42,14 +42,14 @@ Run:
 desktop\windows\build-x64\VoiceStick.exe
 ```
 
-Build a signed MSI locally:
+Build a signed setup installer locally:
 
 ```powershell
 $env:SIGNING_SHA1 = "YOUR_CERT_THUMBPRINT"
-scripts\build-msi.bat
+scripts\build-exe-installer.bat
 ```
 
-Upload `desktop\windows\build-msi-x64\VoiceStick_<version>.msi` to the matching GitHub Release, then manually run the `Deploy Website to GitHub Pages` workflow. The MSI is the WinSparkle update package; the appcast entry records the GitHub Release MSI URL, byte length, version, Windows OS marker, and `/passive` installer argument.
+Upload `desktop\windows\build-installer-x64\VoiceStickSetup-<version>.exe` to the matching GitHub Release, then manually run the `Deploy Website to GitHub Pages` workflow. The setup installer is the WinSparkle update package; the appcast entry records the GitHub Release installer URL, byte length, version, Windows OS marker, and `/passive` installer argument.
 
 If an older `desktop\windows\build` directory was configured from the wrong Visual Studio environment, delete it or ignore it. Mixing an x86 CMake cache with x64 SDK libraries causes link errors.
 

@@ -3,6 +3,7 @@
 #include "cJSON.h"
 
 #include <algorithm>
+#include <cctype>
 #include <memory>
 #include <sstream>
 #include <utility>
@@ -98,6 +99,86 @@ void AppendUtteranceSegments(cJSON* utterances, std::vector<AsrSegment>* segment
 }
 
 } // namespace
+
+void AsrTranscriptAccumulator::Reset() {
+    completed_transcript_.clear();
+    current_sentence_.clear();
+}
+
+std::string AsrTranscriptAccumulator::Apply(std::string_view text, bool sentence_end) {
+    const auto normalized = Trim(text);
+    if (normalized.empty()) return CurrentText();
+
+    if (sentence_end) {
+        Commit(normalized);
+        current_sentence_.clear();
+        return CurrentText();
+    }
+
+    if (!completed_transcript_.empty()) {
+        if (EndsWith(completed_transcript_, normalized)) {
+            current_sentence_.clear();
+            return completed_transcript_;
+        }
+        if (StartsWith(normalized, completed_transcript_)) {
+            current_sentence_ = Trim(normalized.substr(completed_transcript_.size()));
+            return Join(completed_transcript_, current_sentence_);
+        }
+    }
+
+    current_sentence_ = normalized;
+    return CurrentText();
+}
+
+std::string AsrTranscriptAccumulator::CurrentText() const {
+    return Join(completed_transcript_, current_sentence_);
+}
+
+std::string AsrTranscriptAccumulator::Trim(std::string_view text) {
+    auto is_space = [](char ch) {
+        return std::isspace(static_cast<unsigned char>(ch));
+    };
+    auto begin = text.begin();
+    auto end = text.end();
+    while (begin != end && is_space(*begin)) ++begin;
+    while (begin != end && is_space(*(end - 1))) --end;
+    return std::string(begin, end);
+}
+
+std::string AsrTranscriptAccumulator::Join(std::string_view lhs, std::string_view rhs) {
+    if (lhs.empty()) return std::string(rhs);
+    if (rhs.empty()) return std::string(lhs);
+    std::string out(lhs);
+    if (ShouldInsertSpace(lhs.back(), rhs.front())) out.push_back(' ');
+    out.append(rhs);
+    return out;
+}
+
+bool AsrTranscriptAccumulator::EndsWith(std::string_view text, std::string_view suffix) {
+    return text.size() >= suffix.size() && text.substr(text.size() - suffix.size()) == suffix;
+}
+
+bool AsrTranscriptAccumulator::StartsWith(std::string_view text, std::string_view prefix) {
+    return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
+}
+
+bool AsrTranscriptAccumulator::ShouldInsertSpace(char lhs, char rhs) {
+    return std::isalnum(static_cast<unsigned char>(lhs)) &&
+           std::isalnum(static_cast<unsigned char>(rhs));
+}
+
+void AsrTranscriptAccumulator::Commit(std::string_view text) {
+    const auto normalized = Trim(text);
+    if (normalized.empty()) return;
+    if (!completed_transcript_.empty()) {
+        if (EndsWith(completed_transcript_, normalized)) return;
+        if (StartsWith(normalized, completed_transcript_)) {
+            completed_transcript_ = normalized;
+            return;
+        }
+    }
+    completed_transcript_ = Join(completed_transcript_, normalized);
+}
 
 ByteVector AsrProtocol::MakeStartConnectionFrame(const AppConfig& config,
                                                  const AsrSessionOptions& options) {

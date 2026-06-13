@@ -4,7 +4,7 @@ VoiceStick releases have three moving parts:
 
 - macOS app: built, signed, notarized, and uploaded by GitHub Actions.
 - StickS3 firmware: built by GitHub Actions and uploaded to Aliyun OSS and GitHub Releases.
-- Windows app: built and signed manually on the Windows signing machine, then uploaded to the matching GitHub Release.
+- Windows app: built into a signed setup installer manually on the Windows signing machine, then uploaded to the matching GitHub Release.
 
 The Windows package is the special case because the signing certificate is local hardware or local machine state. The release process supports either order:
 
@@ -68,28 +68,28 @@ After publishing the GitHub Release, the workflow requests a website deploy so t
 Use this flow when the Windows package has already been built and signed before the macOS/firmware release.
 
 1. Set the new version in `VERSION`.
-2. On the Windows signing machine, build and sign the MSI:
+2. On the Windows signing machine, build and sign the setup installer:
 
 ```bat
-scripts\build-msi.bat
+scripts\build-exe-installer.bat
 ```
 
 The output is:
 
 ```text
-desktop\windows\build-msi-x64\VoiceStick_<version>.msi
+desktop\windows\build-installer-x64\VoiceStickSetup-<version>.exe
 ```
 
 3. Confirm `firmware/version.txt` also matches the new version.
 4. Commit, push `main`, and push the matching `v<version>` tag.
 5. Wait for the release workflow to finish successfully.
-6. Upload the signed MSI to the same GitHub Release:
+6. Upload the signed setup installer to the same GitHub Release:
 
 ```sh
-gh release upload v0.2.4 desktop/windows/build-msi-x64/VoiceStick_0.2.4.msi --repo fwz233-RE/voicestick-mindex
+gh release upload v0.2.4 desktop/windows/build-installer-x64/VoiceStickSetup-0.2.4.exe --repo fwz233-RE/voicestick-mindex
 ```
 
-7. Re-run the website deploy workflow so the appcast includes the Windows MSI:
+7. Re-run the website deploy workflow so the appcast includes the Windows setup installer:
 
 ```sh
 gh workflow run deploy-website.yml --repo fwz233-RE/voicestick-mindex --ref main
@@ -102,16 +102,16 @@ Use this flow when macOS and firmware should be published before the Windows pac
 1. Update `VERSION` and `firmware/version.txt`.
 2. Commit, push `main`, and push the matching `v<version>` tag.
 3. Wait for the release workflow to publish macOS and firmware.
-4. Later, on the Windows signing machine, build and sign the MSI:
+4. Later, on the Windows signing machine, build and sign the setup installer:
 
 ```bat
-scripts\build-msi.bat
+scripts\build-exe-installer.bat
 ```
 
-5. Upload the signed MSI to the already published GitHub Release:
+5. Upload the signed setup installer to the already published GitHub Release:
 
 ```sh
-gh release upload v0.2.4 desktop/windows/build-msi-x64/VoiceStick_0.2.4.msi --repo fwz233-RE/voicestick-mindex
+gh release upload v0.2.4 desktop/windows/build-installer-x64/VoiceStickSetup-0.2.4.exe --repo fwz233-RE/voicestick-mindex
 ```
 
 6. Re-run the website deploy workflow:
@@ -120,7 +120,7 @@ gh release upload v0.2.4 desktop/windows/build-msi-x64/VoiceStick_0.2.4.msi --re
 gh workflow run deploy-website.yml --repo fwz233-RE/voicestick-mindex --ref main
 ```
 
-Until the MSI is uploaded and the website deploy has run, Windows clients will not see the new Windows update in the appcast.
+Until the setup installer is uploaded and the website deploy has run, Windows clients will not see the new Windows update in the appcast.
 
 ## Verification
 
@@ -136,7 +136,7 @@ https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmware
 For version `0.2.4`, the appcast should contain:
 
 ```text
-https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick_0.2.4.msi
+https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStickSetup-0.2.4.exe
 https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick-0.2.4.zip
 ```
 
@@ -153,7 +153,7 @@ Use `HEAD` requests or a browser to confirm every URL returns `200`.
 Invoke-WebRequest -UseBasicParsing https://fwz233-re.github.io/voicestick-mindex/appcast.xml
 Invoke-WebRequest -UseBasicParsing https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json
 
-Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick_0.2.4.msi
+Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStickSetup-0.2.4.exe
 Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/fwz233-RE/voicestick-mindex/releases/download/v0.2.4/VoiceStick-0.2.4.zip
 Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-ota-0.2.4.bin
 Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-merged-0.2.4.bin
@@ -167,7 +167,7 @@ Also confirm these workflow runs are successful:
 The release is complete when:
 
 - macOS appcast entry points to the new Sparkle ZIP.
-- Windows appcast entry points to the new signed MSI.
+- Windows appcast entry points to the new signed setup installer.
 - firmware `latest/manifest.json` reports the new version.
 - OTA and merged firmware URLs are reachable.
 - the GitHub Release contains all macOS, Windows, and firmware assets.

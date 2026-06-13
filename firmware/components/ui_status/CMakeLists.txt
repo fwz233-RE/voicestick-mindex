@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "ui_status.c" "ui_status_icons.c"
+    SRCS "ui_status.c" "ui_status_icons.c" "ui_status_font_zh_16.c"
     INCLUDE_DIRS "include" "."
     EMBED_FILES
         "assets/cat_pairing_argb8888.bin"

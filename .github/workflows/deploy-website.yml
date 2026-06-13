@@ -56,9 +56,9 @@ jobs:
             echo "Release ${tag} has no ${zip_asset}; keeping existing appcast."
             exit 0
           fi
-          msi_asset="VoiceStick_${version}.msi"
-          msi_length="$(gh release view "$tag" --json assets \
-            -q ".assets[] | select(.name == \"${msi_asset}\") | .size" || true)"
+          windows_asset="VoiceStickSetup-${version}.exe"
+          windows_length="$(gh release view "$tag" --json assets \
+            -q ".assets[] | select(.name == \"${windows_asset}\") | .size" || true)"
           if ! gh release download "$tag" --pattern "$sig_asset" --dir "$RUNNER_TEMP"; then
             echo "Release ${tag} has no ${sig_asset}; keeping existing appcast."
             exit 0
@@ -72,10 +72,10 @@ jobs:
             --length "$zip_length" \
             --release-notes "$notes"
           )
-          if [ -n "${msi_length:-}" ]; then
+          if [ -n "${windows_length:-}" ]; then
             args+=(
-              --msi-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${msi_asset}" \
-              --msi-length "$msi_length" \
+              --windows-installer-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${windows_asset}" \
+              --windows-installer-length "$windows_length" \
             )
           fi
           python3 scripts/update-appcast.py "${args[@]}"
