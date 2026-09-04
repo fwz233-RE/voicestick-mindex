@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>语音识别项目</title>
+  <meta name="description" content="一个专注于语音识别和文字输入的项目。">
+  <style>
+    :root {
+      color-scheme: light;
+      --background: #f6f7fb;
+      --surface: #ffffff;
+      --text: #1f2937;
+      --muted: #667085;
+      --primary: #4f46e5;
+      --border: #e5e7eb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--background);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+
+    .container {
+      width: min(920px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 28px 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .brand {
+      color: var(--primary);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+
+    main { padding: 88px 0 72px; }
+
+    .hero {
+      max-width: 700px;
+      padding: 44px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 14px 36px rgba(31, 41, 55, .06);
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--primary);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(32px, 6vw, 52px);
+      line-height: 1.15;
+    }
+
+    .intro {
+      margin: 22px 0 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 28px;
+    }
+
+    .card {
+      padding: 22px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    footer {
+      padding: 24px 0 36px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 680px) {
+      main { padding: 48px 0; }
+      .hero { padding: 28px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="brand">语音识别项目</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <section class="hero">
+        <p class="eyebrow">VOICE RECOGNITION</p>
+        <h1>让语音更自然地变成文字</h1>
+        <p class="intro">
+          这是一个专注于语音识别、实时转写和文字输入的项目。项目仍在持续开发中，后续会逐步完善应用功能和使用文档。
+        </p>
+      </section>
+
+      <section class="grid" aria-label="项目方向">
+        <article class="card">
+          <h2>语音识别</h2>
+          <p>将麦克风采集的语音转换为可编辑的文字。</p>
+        </article>
+        <article class="card">
+          <h2>实时转写</h2>
+          <p>在说话过程中提供连续的识别结果和状态反馈。</p>
+        </article>
+        <article class="card">
+          <h2>持续开发</h2>
+          <p>后续将继续完善跨平台支持、输入体验和项目说明。</p>
+        </article>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">这是项目介绍页面，更多内容将在后续更新。</div>
+  </footer>
+</body>
+</html>
