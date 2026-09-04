@@ -1,36 +1,18 @@
 #!/bin/bash
-# Build VoiceStick for macOS as a universal app bundle.
-#
-# Produces:
-#   build/VoiceStick-<version>.app
-
+# Build the macOS menu bar voice-to-text app bundle.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$SCRIPT_DIR/.."
-DESKTOP_DIR="$ROOT_DIR/desktop/macos"
+PACKAGE_DIR="$ROOT_DIR/desktop/macos"
 BUILD_DIR="$ROOT_DIR/build"
-PLIST="$DESKTOP_DIR/Sources/VoiceStickApp/Info.plist"
-ENTITLEMENTS="$DESKTOP_DIR/VoiceStick.entitlements"
 VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 CONFIG="${1:---release}"
-TARGET_ARCHS="arm64 x86_64"
-SWIFT_EXTRA_FLAGS=()
-if [ -f "$DESKTOP_DIR/Sources/VoiceStickApp/Private/PrivateEmbeddedAPIKey.swift" ] || [ -f "$DESKTOP_DIR/Sources/VoiceStickApp/Private/EmbeddedAPIKey.swift" ]; then
-    SWIFT_EXTRA_FLAGS+=("-Xswiftc" "-DPRIVATE_EMBEDDED_API_KEY")
-fi
 
 case "$CONFIG" in
-    --release)
-        SWIFT_CONFIG="release"
-        ;;
-    --debug)
-        SWIFT_CONFIG="debug"
-        ;;
-    *)
-        echo "Usage: $0 [--release|--debug]"
-        exit 1
-        ;;
+    --release) SWIFT_CONFIG=release ;;
+    --debug) SWIFT_CONFIG=debug ;;
+    *) echo "Usage: $0 [--release|--debug]"; exit 1 ;;
 esac
 
 if [ -z "$VERSION" ]; then
@@ -38,120 +20,28 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-if [ ! -f "$ENTITLEMENTS" ]; then
-    echo "Error: entitlements file not found: $ENTITLEMENTS"
-    exit 1
-fi
-
 mkdir -p "$BUILD_DIR"
+PLIST="$PACKAGE_DIR/Sources/VoiceToTextApp/Info.plist"
+APP_DIR="$BUILD_DIR/VoiceToText-${VERSION}.app"
 
-echo "===================================="
-echo " VoiceStick macOS Build v$VERSION"
-echo " Universal Binary: $TARGET_ARCHS"
-echo "===================================="
-
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$PLIST"
-
-for ARCH in $TARGET_ARCHS; do
-    echo ""
-    echo "Building VoiceStickApp for $ARCH..."
-    SCRATCH="$DESKTOP_DIR/.build-$ARCH"
+for ARCH in arm64 x86_64; do
+    SCRATCH="$PACKAGE_DIR/.build-$ARCH"
     rm -rf "$SCRATCH"
+    echo "Building VoiceToTextApp for $ARCH..."
     swift build \
-        --package-path "$DESKTOP_DIR" \
+        --package-path "$PACKAGE_DIR" \
         -c "$SWIFT_CONFIG" \
         --arch "$ARCH" \
-        --scratch-path "$SCRATCH" \
-        "${SWIFT_EXTRA_FLAGS[@]}"
+        --scratch-path "$SCRATCH"
 done
 
-APP_DIR="$BUILD_DIR/VoiceStick-${VERSION}.app"
+ARM_BINARY="$PACKAGE_DIR/.build-arm64/arm64-apple-macosx/$SWIFT_CONFIG/VoiceToTextApp"
+X86_BINARY="$PACKAGE_DIR/.build-x86_64/x86_64-apple-macosx/$SWIFT_CONFIG/VoiceToTextApp"
 rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources" "$APP_DIR/Contents/Frameworks"
-
-ARM_BUILD="$DESKTOP_DIR/.build-arm64/arm64-apple-macosx/$SWIFT_CONFIG"
-X86_BUILD="$DESKTOP_DIR/.build-x86_64/x86_64-apple-macosx/$SWIFT_CONFIG"
-
-echo ""
-echo "Creating universal executable..."
-lipo -create \
-    "$ARM_BUILD/VoiceStickApp" \
-    "$X86_BUILD/VoiceStickApp" \
-    -output "$APP_DIR/Contents/MacOS/VoiceStickApp"
-
+mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+lipo -create "$ARM_BINARY" "$X86_BINARY" -output "$APP_DIR/Contents/MacOS/VoiceToTextApp"
 cp "$PLIST" "$APP_DIR/Contents/Info.plist"
 
-ICONSET_PATH="$DESKTOP_DIR/Resources/AppIcon.iconset"
-ICON_PATH="$DESKTOP_DIR/Resources/AppIcon.icns"
-if [ -d "$ICONSET_PATH" ]; then
-    iconutil -c icns "$ICONSET_PATH" -o "$ICON_PATH"
-fi
-if [ -f "$ICON_PATH" ]; then
-    cp "$ICON_PATH" "$APP_DIR/Contents/Resources/AppIcon.icns"
-else
-    echo "WARNING: App icon was not found: $ICON_PATH"
-fi
-
-CODESIGN_IDENTITY="-"
-if security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application"; then
-    CODESIGN_IDENTITY="$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')"
-fi
-
-sign_code() {
-    local path="$1"
-    local entitlements="${2:-}"
-    codesign --remove-signature "$path" 2>/dev/null || true
-    local args=(--force --options runtime)
-    if [ -n "$entitlements" ]; then
-        args+=(--entitlements "$entitlements")
-    fi
-    if [ "$CODESIGN_IDENTITY" != "-" ]; then
-        codesign "${args[@]}" --sign "$CODESIGN_IDENTITY" "$path"
-    else
-        codesign "${args[@]}" --sign - "$path"
-    fi
-}
-
-sign_embedded_code() {
-    local app_dir="$1"
-    local frameworks_dir="$app_dir/Contents/Frameworks"
-    if [ ! -d "$frameworks_dir" ]; then
-        return
-    fi
-
-    while IFS= read -r -d '' code_path; do
-        echo "Signing embedded code: ${code_path#$app_dir/Contents/}"
-        sign_code "$code_path"
-    done < <(find "$frameworks_dir" -depth \( -name "*.app" -o -name "*.xpc" -o -name "*.framework" -o -name "*.bundle" -o -name "*.dylib" \) -print0)
-}
-
-echo ""
-echo "Signing app..."
-xattr -cr "$APP_DIR" 2>/dev/null || true
-if [ "$CODESIGN_IDENTITY" != "-" ]; then
-    echo "Using: $CODESIGN_IDENTITY"
-else
-    echo "Using ad-hoc signature."
-fi
-sign_embedded_code "$APP_DIR"
-sign_code "$APP_DIR" "$ENTITLEMENTS"
-
-echo "Verifying app signature..."
-codesign --verify --deep --strict --verbose=2 "$APP_DIR"
-
-echo "Checking app entitlements..."
-if [ "$CODESIGN_IDENTITY" != "-" ]; then
-    if ! codesign -d --entitlements :- "$APP_DIR" 2>/dev/null | plutil -extract com.apple.security.cs.disable-library-validation raw - 2>/dev/null | grep -Eq '^(1|true)$'; then
-        echo "Error: app signature is missing com.apple.security.cs.disable-library-validation."
-        exit 1
-    fi
-else
-    echo "Skipping entitlement check for ad-hoc signature."
-fi
-
-echo ""
-echo "Build complete:"
-echo "  App: $APP_DIR"
-echo ""
-echo "Next: $SCRIPT_DIR/make-dmg.sh $APP_DIR"
+codesign --force --deep --sign - "$APP_DIR"
+codesign --verify --deep --strict "$APP_DIR"
+echo "App complete: $APP_DIR"
